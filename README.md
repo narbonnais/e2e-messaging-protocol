@@ -23,8 +23,8 @@ A web-based end-to-end encrypted messaging system with a central server that han
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/narbonnais/secure-messenger.git
-cd secure-messenger
+git clone https://github.com/narbonnais/e2e-messaging-protocol.git
+cd e2e-messaging-protocol
 ```
 
 2. Install dependencies:
