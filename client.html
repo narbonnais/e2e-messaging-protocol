@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Simple E2E Messenger - Client</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: #f3f3f3;
+    }
+    h1, h2, h3 {
+      margin: 0.5em 0;
+    }
+    .section {
+      background: white;
+      padding: 10px;
+      margin-bottom: 20px;
+      border: 1px solid #ccc;
+    }
+    .row {
+      margin: 8px 0;
+    }
+    label {
+      display: inline-block;
+      width: 120px;
+      font-weight: bold;
+    }
+    input, textarea, select {
+      width: 300px;
+      max-width: 100%;
+    }
+    textarea {
+      height: 80px;
+    }
+    button {
+      margin-top: 5px;
+      cursor: pointer;
+    }
+    .messages {
+      white-space: pre-wrap;
+      background: #eee;
+      padding: 10px;
+      margin-top: 10px;
+    }
+    .keys-list {
+      font-family: monospace;
+      white-space: pre;
+      background: #fafafa;
+      border: 1px dashed #ccc;
+      padding: 10px;
+      max-height: 200px;
+      overflow: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Simple E2E Messenger - Client View</h1>
+
+  <div class="section">
+    <h2>Manage Keys</h2>
+
+    <div class="row">
+      <label>Identifier:</label>
+      <input id="identifier" type="text" value="alice" />
+    </div>
+
+    <div class="row">
+      <button onclick="generateKey()">Generate Key Pair</button>
+      <span style="margin-left: 10px; font-size: 0.9em;">
+        (This will create a new RSA key pair for the above identifier)
+      </span>
+    </div>
+
+    <div class="row">
+      <label>Import Public Key for:</label>
+      <input id="importId" type="text" placeholder="e.g. bob" />
+    </div>
+    <div class="row">
+      <textarea id="importPubKey" placeholder="Paste the PEM content here"></textarea>
+    </div>
+    <div class="row">
+      <button onclick="importPubKey()">Import Public Key</button>
+    </div>
+
+    <div class="row">
+      <button onclick="refreshKeys()">View My Keys</button>
+    </div>
+    <div id="keysContainer" class="keys-list"></div>
+  </div>
+
+  <div class="section">
+    <h2>Send a Message</h2>
+    <div class="row">
+      <label>Your ID (sender):</label>
+      <input id="senderId" type="text" value="alice" />
+    </div>
+    <div class="row">
+      <label>Recipient ID:</label>
+      <input id="recipientId" type="text" value="bob" />
+    </div>
+    <div class="row">
+      <label>Message Text:</label>
+      <textarea id="messageContent"></textarea>
+    </div>
+    <button onclick="sendMessage()">Send</button>
+    <div id="sendResponse" class="messages"></div>
+  </div>
+
+  <div class="section">
+    <h2>Pull Messages</h2>
+    <div class="row">
+      <label>Your ID:</label>
+      <input id="pullId" type="text" value="bob" />
+    </div>
+    <button onclick="pullMessages()">Pull</button>
+    <div id="pullResponse" class="messages"></div>
+  </div>
+
+  <script>
+    // -----------------------------
+    // NOTE: The below code is purely illustrative.
+    // It assumes you have implemented some HTTP endpoints on
+    // your Python code to handle these requests. 
+    // For example:
+    //   POST /api/generate_key
+    //   POST /api/import_key
+    //   POST /api/send_message
+    //   POST /api/pull_messages
+    //   GET  /api/keys?identifier=xxx
+    // 
+    // None of these endpoints exist in your raw TCP code right now.
+    // This is just a front-end sample to show the basic flow.
+    // -----------------------------
+
+    async function generateKey() {
+      const id = document.getElementById('identifier').value.trim();
+      if (!id) {
+        alert('Please enter an identifier.');
+        return;
+      }
+      // Example: POST /api/generate_key with JSON body { id: 'alice' }
+      try {
+        const resp = await fetch('/api/generate_key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+        const text = await resp.text();
+        alert("Generate Key response:\n" + text);
+      } catch (err) {
+        alert("Error generating key:\n" + err);
+      }
+    }
+
+    async function importPubKey() {
+      const id = document.getElementById('importId').value.trim();
+      const pubKey = document.getElementById('importPubKey').value.trim();
+      if (!id || !pubKey) {
+        alert('Please fill out the ID and the public key text.');
+        return;
+      }
+      // Example: POST /api/import_key with JSON body { id: 'bob', publicKeyPem: '...' }
+      try {
+        const resp = await fetch('/api/import_key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, publicKeyPem: pubKey })
+        });
+        const text = await resp.text();
+        alert("Import Key response:\n" + text);
+      } catch (err) {
+        alert("Error importing key:\n" + err);
+      }
+    }
+
+    async function refreshKeys() {
+      const id = document.getElementById('identifier').value.trim();
+      if (!id) {
+        alert('Please enter an identifier to list keys for.');
+        return;
+      }
+      // Example: GET /api/keys?identifier=alice
+      try {
+        const resp = await fetch('/api/keys?identifier=' + encodeURIComponent(id));
+        const text = await resp.text();
+        document.getElementById('keysContainer').textContent = text;
+      } catch (err) {
+        document.getElementById('keysContainer').textContent = "Error listing keys: " + err;
+      }
+    }
+
+    async function sendMessage() {
+      const sender = document.getElementById('senderId').value.trim();
+      const recipient = document.getElementById('recipientId').value.trim();
+      const message = document.getElementById('messageContent').value.trim();
+      if (!sender || !recipient || !message) {
+        alert('Please fill out all fields to send a message.');
+        return;
+      }
+      // Example: POST /api/send_message with JSON { sender, recipient, message }
+      try {
+        const resp = await fetch('/api/send_message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sender, recipient, message })
+        });
+        const text = await resp.text();
+        document.getElementById('sendResponse').textContent = text;
+      } catch (err) {
+        document.getElementById('sendResponse').textContent = "Error: " + err;
+      }
+    }
+
+    async function pullMessages() {
+      const id = document.getElementById('pullId').value.trim();
+      if (!id) {
+        alert('Please enter your ID to pull messages.');
+        return;
+      }
+      // Example: POST /api/pull_messages with JSON { id }
+      try {
+        const resp = await fetch('/api/pull_messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+        const text = await resp.text();
+        document.getElementById('pullResponse').textContent = text;
+      } catch (err) {
+        document.getElementById('pullResponse').textContent = "Error: " + err;
+      }
+    }
+
+  </script>
+</body>
+</html>

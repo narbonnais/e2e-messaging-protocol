@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Simple E2E Messenger - Server View</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: #f0f0f0;
+    }
+    .section {
+      background: #fff;
+      padding: 10px;
+      border: 1px solid #ccc;
+      margin-bottom: 20px;
+    }
+    pre {
+      background: #eee;
+      max-height: 300px;
+      overflow-y: auto;
+      padding: 10px;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h1>Simple E2E Messenger - Server Dashboard</h1>
+
+  <div class="section">
+    <h2>Metrics</h2>
+    <button onclick="refreshMetrics()">Refresh Metrics</button>
+    <div id="metricsArea"></div>
+  </div>
+
+  <div class="section">
+    <h2>Live Log</h2>
+    <button onclick="refreshLogs()">Refresh Log</button>
+    <pre id="logArea"></pre>
+  </div>
+
+  <script>
+    // Again, these calls assume you have some HTTP endpoints in your Python code.
+    // For example:
+    //   GET /api/metrics => returns JSON of { messagesInQueue, pulledMessages, etc. }
+    //   GET /api/log => returns some chunk of the server.log or last N lines
+
+    async function refreshMetrics() {
+      try {
+        const resp = await fetch('/api/metrics');
+        const data = await resp.json();
+        // data might look like { "messagesCount": 5, "pulledCount": 12, ... }
+        const html = `
+          <p>Messages in DB: ${data.messagesCount}</p>
+          <p>Messages Pulled: ${data.pulledCount}</p>
+          <p>Last Cleanup: ${data.lastCleanup}</p>
+        `;
+        document.getElementById('metricsArea').innerHTML = html;
+      } catch (err) {
+        document.getElementById('metricsArea').innerText = "Error fetching metrics: " + err;
+      }
+    }
+
+    async function refreshLogs() {
+      try {
+        const resp = await fetch('/api/log');
+        const text = await resp.text();
+        document.getElementById('logArea').textContent = text;
+      } catch (err) {
+        document.getElementById('logArea').textContent = "Error fetching logs: " + err;
+      }
+    }
+  </script>
+</body>
+</html>
