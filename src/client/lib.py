@@ -43,6 +43,11 @@ def generate_keys(identifier: str):
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
             )
         )
+    
+    # Initialize the database with default config when generating new keys
+    db_path = get_client_db_path(identifier)
+    init_client_db(db_path)
+    
     print(f"Generated keys in {key_dir}/")
     print(f" - {private_path}")
     print(f" - {public_path}")
@@ -90,13 +95,21 @@ def send_message(server: str, port: int,
     Send a message via raw TCP
     """
     try:
+        # Get recipient's public key from contacts database
+        db_path = get_client_db_path(sender_id)
+        recipient_pub_key = get_contact_pubkey(db_path, recipient_id)
+        
+        if not recipient_pub_key:
+            return f"Error: No public key found for '{recipient_id}' in contacts database. Please import their public key first."
+
+        # Get sender's private key from filesystem
         sender_private = get_key_path(sender_id, private=True)
-        recipient_public = get_key_path(recipient_id, private=False)
 
         with sender_private.open("rb") as f:
             private_key = serialization.load_pem_private_key(f.read(), password=None)
-        with recipient_public.open("rb") as f:
-            pub_key = serialization.load_pem_public_key(f.read())
+
+        # Load recipient's public key from contacts database
+        pub_key = serialization.load_pem_public_key(recipient_pub_key)
 
         # Convert recipient pub to PEM bytes
         recipient_pub_pem = pub_key.public_bytes(
@@ -137,20 +150,34 @@ def send_message(server: str, port: int,
 
         send_cmd = f"SEND {b64_recipient_pub} {b64_ciphertext} {b64_signature} {b64_sender_pub} {b64_nonce}\n"
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((server, port))
-            s.sendall(send_cmd.encode('utf-8'))
-            resp = s.recv(4096).decode('utf-8', errors='ignore').strip()
-            
-            # If message was sent successfully, store it locally
-            if resp.startswith("OK"):
-                db_path = get_client_db_path(sender_id)
-                init_client_db(db_path)
-                store_decrypted_message(db_path, sender_pub_pem, recipient_pub_pem, message)
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(5)  # Set 5 second timeout
+                s.connect((server, port))
+                s.sendall(send_cmd.encode('utf-8'))
+                resp = s.recv(4096).decode('utf-8', errors='ignore').strip()
                 
-        return resp
+                # If message was sent successfully, store it locally
+                if resp.startswith("OK"):
+                    db_path = get_client_db_path(sender_id)
+                    init_client_db(db_path)
+                    store_decrypted_message(db_path, sender_pub_pem, recipient_pub_pem, message)
+                    
+            return resp
+        except socket.timeout:
+            return "Error: Connection to server timed out. Please check server address and port."
+        except ConnectionRefusedError:
+            return "Error: Connection refused. Please check if the server is running and the address/port are correct."
+        except socket.gaierror:
+            return "Error: Could not resolve server address. Please check the server address."
+        except Exception as e:
+            return f"Error connecting to server: {str(e)}"
+
     except FileNotFoundError as e:
         return f"Error: {str(e)}"
+    except Exception as e:
+        logging.error(f"Error in send_message: {str(e)}")
+        return f"Error sending message: {str(e)}"
 
 def pull_messages(server: str, port: int, identifier: str) -> str:
     """Pull messages from server via raw TCP and store decrypted ones."""
@@ -373,9 +400,11 @@ def get_contact_pubkey(db_path: str, contact_id: str) -> bytes:
     """Get a contact's public key from the database."""
     with db_lock, sqlite3.connect(db_path) as conn:
         c = conn.cursor()
-        c.execute("SELECT public_key_pem FROM contacts WHERE id = ?", (contact_id,))
+        # Use LOWER() for case-insensitive comparison
+        c.execute("SELECT public_key_pem FROM contacts WHERE LOWER(id) = LOWER(?)", (contact_id,))
         result = c.fetchone()
         if result:
+            # Convert string to bytes before returning
             return result[0].encode('utf-8')
         return None
 
