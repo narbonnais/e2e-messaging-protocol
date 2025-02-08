@@ -4,22 +4,40 @@ A guide for using this web-based end-to-end encrypted messaging system.
 
 ## Starting the Servers
 
-### Start Message Server
+### Local Setup
+If you want to run everything locally, you'll need to start three servers:
+
+1. Start Message Server:
 ```bash
 python -m src.server.runtime
 ```
 
-### Start Client Web Interface
+2. Start Client Web Interface:
 ```bash
 python -m src.client.web
 ```
 Access the client interface at: http://127.0.0.1:8000
 
-### Start Server Dashboard
+3. Start Server Dashboard:
 ```bash
 python -m src.server.web
 ```
 Access the server dashboard at: http://127.0.0.1:8001
+
+### Remote Server Setup
+If you're connecting to a remote server, you only need to:
+
+1. Start the client web interface locally:
+```bash
+python -m src.client.web
+```
+
+2. Access http://127.0.0.1:8000 in your browser
+
+3. Configure the remote server address:
+   - Click "Settings" in the web interface
+   - Enter the remote server host and port
+   - Click "Save Settings"
 
 ## Using the Client Interface
 
@@ -91,9 +109,10 @@ Access the server dashboard at: http://127.0.0.1:8001
 ## Troubleshooting
 
 1. Connection Issues
-   - Verify all three servers are running
+   - If using remote server, only the client web interface needs to run locally
+   - For local setup, verify all three servers are running
    - Check browser console for errors
-   - Ensure ports 8000, 8001, and 50000 are available
+   - Ensure required ports are available (8000 for local client, 8001 and 50000 for server)
 
 2. Key Problems
    - Ensure proper key format when importing

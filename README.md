@@ -34,6 +34,8 @@ pip install cryptography flask
 
 ## Quick Start
 
+### Running Everything Locally
+
 1. Start the message server:
 ```bash
 python -m src.server.runtime
@@ -50,6 +52,19 @@ Access at: http://127.0.0.1:8000
 python -m src.server.web
 ```
 Access at: http://127.0.0.1:8001
+
+### Connecting to Remote Server
+
+If you're connecting to an existing remote server, you only need to:
+
+1. Start the client web interface locally:
+```bash
+python -m src.client.web
+```
+
+2. Access http://127.0.0.1:8000 in your browser
+
+3. Configure the server address in the web interface settings
 
 ## Security Features
 
