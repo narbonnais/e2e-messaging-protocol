@@ -2,154 +2,501 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Simple E2E Messenger - Client</title>
+  <title>E2E Messenger</title>
   <style>
     body {
-      font-family: sans-serif;
-      margin: 20px;
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
       background: #f3f3f3;
     }
-    h1, h2, h3 {
-      margin: 0.5em 0;
+
+    .top-bar {
+      background: #2c6bed;
+      color: white;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
-    .section {
-      background: white;
+
+    .top-bar h1 {
+      margin: 0;
+      font-size: 1.2em;
+    }
+
+    .settings-btn {
+      background: none;
+      border: 1px solid #eee;
+      color: white;
+      cursor: pointer;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    .main-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Left side: IDs/Contacts */
+    .sidebar {
+      width: 260px;
+      background: #fff;
+      border-right: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar .section {
+      border-bottom: 1px solid #eee;
       padding: 10px;
-      margin-bottom: 20px;
-      border: 1px solid #ccc;
     }
-    .row {
-      margin: 8px 0;
-    }
-    label {
-      display: inline-block;
-      width: 120px;
+
+    .section h2 {
+      margin: 0 0 8px 0;
+      font-size: 1em;
       font-weight: bold;
     }
-    input, textarea, select {
-      width: 300px;
-      max-width: 100%;
+
+    .local-ids, .contact-list {
+      max-height: 150px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 5px;
+      font-size: 0.9em;
+      margin-bottom: 5px;
     }
-    textarea {
-      height: 80px;
-    }
-    button {
-      margin-top: 5px;
+
+    .local-ids div, .contact-list div {
+      padding: 3px 5px;
       cursor: pointer;
     }
-    .messages {
-      white-space: pre-wrap;
-      background: #eee;
-      padding: 10px;
-      margin-top: 10px;
+    .local-ids div:hover, .contact-list div:hover {
+      background: #f3f3f3;
     }
-    .keys-list {
-      font-family: monospace;
-      white-space: pre;
+    .local-ids .active {
+      background: #e3f2fd;
+      font-weight: bold;
+    }
+
+    .btn-small {
+      padding: 5px 8px;
+      font-size: 0.8em;
+      cursor: pointer;
+      margin-right: 5px;
+    }
+
+    /* Middle conversation list (if needed) */
+    .conversation-list {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
       background: #fafafa;
-      border: 1px dashed #ccc;
+      border-right: 1px solid #ddd;
+      overflow-y: auto;
+    }
+
+    /* Right side: Chat panel */
+    .chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #f0f0f0;
+    }
+
+    .chat-header {
+      padding: 15px;
+      background: white;
+      border-bottom: 1px solid #ddd;
+      font-weight: bold;
+    }
+
+    .message-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column-reverse;
+    }
+
+    .message {
+      max-width: 70%;
+      margin: 5px 0;
       padding: 10px;
-      max-height: 200px;
-      overflow: auto;
+      border-radius: 10px;
+      word-wrap: break-word;
+    }
+
+    .message.sent {
+      background: #dcf8c6;
+      align-self: flex-end;
+    }
+
+    .message.received {
+      background: white;
+      align-self: flex-start;
+    }
+
+    .message .meta {
+      font-size: 0.8em;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    .input-area {
+      padding: 15px;
+      background: white;
+      display: flex;
+      gap: 10px;
+    }
+
+    .input-area input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      outline: none;
+    }
+
+    .input-area button {
+      background: #2c6bed;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 20px;
+      cursor: pointer;
+    }
+
+    /* Settings Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 500px;
+    }
+
+    .modal h2 {
+      margin-top: 0;
+    }
+
+    .form-group {
+      margin: 15px 0;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 5px;
+    }
+
+    .form-group input, .form-group textarea {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+
+    button.close-btn {
+      background: #777;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <h1>Simple E2E Messenger - Client View</h1>
-
-  <div class="section">
-    <h2>Manage Keys</h2>
-
-    <div class="row">
-      <label>Identifier:</label>
-      <input id="identifier" type="text" value="alice" />
-    </div>
-
-    <div class="row">
-      <button onclick="generateKey()">Generate Key Pair</button>
-      <span style="margin-left: 10px; font-size: 0.9em;">
-        (This will create a new RSA key pair for the above identifier)
-      </span>
-    </div>
-
-    <div class="row">
-      <label>Import Public Key for:</label>
-      <input id="importId" type="text" placeholder="e.g. bob" />
-    </div>
-    <div class="row">
-      <textarea id="importPubKey" placeholder="Paste the PEM content here"></textarea>
-    </div>
-    <div class="row">
-      <button onclick="importPubKey()">Import Public Key</button>
-    </div>
-
-    <div class="row">
-      <button onclick="refreshKeys()">View My Keys</button>
-    </div>
-    <div id="keysContainer" class="keys-list"></div>
+  <div class="top-bar">
+    <h1>E2E Messenger</h1>
+    <button class="settings-btn" onclick="showSettings()">Settings</button>
   </div>
 
-  <div class="section">
-    <h2>Send a Message</h2>
-    <div class="row">
-      <label>Your ID (sender):</label>
-      <input id="senderId" type="text" value="alice" />
+  <div class="main-container">
+    <!-- LEFT SIDEBAR: Local IDs + Contacts -->
+    <div class="sidebar">
+      <div class="section">
+        <h2>Local IDs</h2>
+        <div id="localIds" class="local-ids">
+          <!-- We'll populate this with /api/list_local_ids -->
+        </div>
+        <button class="btn-small" onclick="refreshLocalIds()">Refresh</button>
+      </div>
+
+      <div class="section">
+        <h2>Contacts</h2>
+        <div id="contactList" class="contact-list">
+          <!-- We could list known contact IDs for the selected user -->
+        </div>
+        <button class="btn-small" onclick="loadContacts()">Refresh</button>
+      </div>
     </div>
-    <div class="row">
-      <label>Recipient ID:</label>
-      <input id="recipientId" type="text" value="bob" />
+
+    <!-- OPTIONAL: If you want a separate conversation list, put it here:
+    <div class="conversation-list" id="conversationList">
+      No conversation (We're storing everything in stored_messages).
     </div>
-    <div class="row">
-      <label>Message Text:</label>
-      <textarea id="messageContent"></textarea>
+    -->
+
+    <!-- RIGHT: Chat Panel -->
+    <div class="chat">
+      <div class="chat-header" id="chatHeader">
+        Select a contact to chat
+      </div>
+      <div class="message-list" id="messageList">
+      </div>
+      <div class="input-area">
+        <input type="text" id="messageInput" placeholder="Type a message..." />
+        <button onclick="sendMessage()">Send</button>
+      </div>
     </div>
-    <button onclick="sendMessage()">Send</button>
-    <div id="sendResponse" class="messages"></div>
   </div>
 
-  <div class="section">
-    <h2>Pull Messages</h2>
-    <div class="row">
-      <label>Your ID:</label>
-      <input id="pullId" type="text" value="bob" />
-    </div>
-    <button onclick="pullMessages()">Pull</button>
-    <div id="pullResponse" class="messages"></div>
-  </div>
+  <!-- Settings Modal -->
+  <div class="modal" id="settingsModal">
+    <div class="modal-content">
+      <h2>Settings / Key Management</h2>
+      
+      <div class="form-group">
+        <label>Generate a New Key Pair:</label>
+        <input type="text" id="genId" placeholder="Your new ID e.g. alice" />
+        <button onclick="generateKey()">Generate</button>
+      </div>
 
-  <div class="section">
-    <h2>Messages History</h2>
-    <div class="row">
-      <label>Your ID:</label>
-      <input id="historyId" type="text" value="alice" />
+      <div class="form-group">
+        <label>Import a Contact's Public Key</label>
+        <input type="text" id="importId" placeholder="Contact's ID e.g. bob" />
+        <textarea id="importPubKey" placeholder="Paste contact's public key PEM here"></textarea>
+        <button onclick="importPubKey()">Import</button>
+      </div>
+
+      <button class="close-btn" onclick="hideSettings()">Close</button>
     </div>
-    <button onclick="loadStoredMessages()">Load Messages</button>
-    <div id="storedMessages" class="messages"></div>
   </div>
 
   <script>
-    // -----------------------------
-    // NOTE: The below code is purely illustrative.
-    // It assumes you have implemented some HTTP endpoints on
-    // your Python code to handle these requests. 
-    // For example:
-    //   POST /api/generate_key
-    //   POST /api/import_key
-    //   POST /api/send_message
-    //   POST /api/pull_messages
-    //   GET  /api/keys?identifier=xxx
-    // 
-    // None of these endpoints exist in your raw TCP code right now.
-    // This is just a front-end sample to show the basic flow.
-    // -----------------------------
+    let currentUser = '';        // The ID we are using (a local ID)
+    let currentContact = '';     // The contact we are chatting with
+    let pollingInterval = null;
 
-    async function generateKey() {
-      const id = document.getElementById('identifier').value.trim();
-      if (!id) {
-        alert('Please enter an identifier.');
+    // On load, we fetch local IDs, show them, auto-select if we have exactly one
+    document.addEventListener('DOMContentLoaded', async () => {
+      await refreshLocalIds();
+
+      // Optionally start polling every 5s if you want auto message updates
+      startPolling();
+    });
+
+    // GET /api/list_local_ids – Returns array of directories in .data, e.g. ["alice","bob"]
+    async function refreshLocalIds() {
+      try {
+        const resp = await fetch('/api/list_local_ids');
+        const ids = await resp.json(); // e.g. ["alice","bob","charlie"]
+        const container = document.getElementById('localIds');
+        container.innerHTML = '';
+        if (Array.isArray(ids) && ids.length > 0) {
+          ids.forEach(id => {
+            const div = document.createElement('div');
+            div.textContent = id;
+            div.onclick = () => selectLocalId(id);
+            // highlight if it's current
+            if (id === currentUser) {
+              div.classList.add('active');
+            }
+            container.appendChild(div);
+          });
+        } else {
+          container.innerHTML = '<div>No local IDs found</div>';
+        }
+      } catch (err) {
+        console.error('Error fetching local IDs:', err);
+      }
+    }
+
+    function selectLocalId(id) {
+      currentUser = id;
+      // update highlight
+      document.querySelectorAll('#localIds div').forEach(div => {
+        div.classList.toggle('active', div.textContent === id);
+      });
+      // Clear chat UI
+      currentContact = '';
+      document.getElementById('messageList').innerHTML = '';
+      document.getElementById('chatHeader').textContent = 'Select a contact to chat';
+      // Also refresh contacts
+      loadContacts();
+    }
+
+    // GET /api/list_contacts?identifier=xxx (Potential endpoint to list known keys for that user)
+    async function loadContacts() {
+      if (!currentUser) {
+        document.getElementById('contactList').innerHTML = '<div>Pick a local ID first</div>';
         return;
       }
-      // Example: POST /api/generate_key with JSON body { id: 'alice' }
+      try {
+        const resp = await fetch('/api/list_contacts?identifier=' + encodeURIComponent(currentUser));
+        const contacts = await resp.json();  // e.g. ["bob","charlie"] or an array of known public keys
+        const container = document.getElementById('contactList');
+        container.innerHTML = '';
+        if (Array.isArray(contacts) && contacts.length > 0) {
+          contacts.forEach(c => {
+            const div = document.createElement('div');
+            div.textContent = c;
+            div.onclick = () => selectContact(c);
+            container.appendChild(div);
+          });
+        } else {
+          container.innerHTML = '<div>No contacts found. Import a key or send a message to a new ID!</div>';
+        }
+      } catch (err) {
+        console.error('Error loading contacts:', err);
+        document.getElementById('contactList').innerHTML = 'Error loading contacts.';
+      }
+    }
+
+    function selectContact(contactId) {
+      currentContact = contactId;
+      document.getElementById('chatHeader').textContent = `Chat with ${contactId}`;
+      loadMessages();
+    }
+
+    // We'll do a simple poll to keep messages updated
+    function startPolling() {
+      if (pollingInterval) clearInterval(pollingInterval);
+      pollingInterval = setInterval(() => {
+        if (currentUser) {
+          pullMessages(); // get new messages from server
+          if (currentContact) {
+            loadMessages(); // refresh local UI for conversation
+          }
+        }
+      }, 5000);
+    }
+
+    // /api/pull_messages => pulls new messages from raw TCP server, storing them in local DB
+    async function pullMessages() {
+      if (!currentUser) return;
+      try {
+        await fetch('/api/pull_messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: currentUser })
+        });
+      } catch (err) {
+        console.error('Error pulling messages:', err);
+      }
+    }
+
+    // /api/stored_messages => read from local DB of decrypted messages
+    async function loadMessages() {
+      if (!currentUser || !currentContact) return;
+      try {
+        const resp = await fetch('/api/stored_messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: currentUser })
+        });
+        const data = await resp.json();
+        
+        // Filter conversation between currentUser and currentContact (case-insensitive)
+        const conversation = data.filter(msg =>
+          (msg.sender.toLowerCase() === currentUser.toLowerCase() && 
+           msg.recipient.toLowerCase() === currentContact.toLowerCase()) ||
+          (msg.sender.toLowerCase() === currentContact.toLowerCase() && 
+           msg.recipient.toLowerCase() === currentUser.toLowerCase())
+        );
+
+        // Sort messages by timestamp
+        conversation.sort((a, b) => a.timestamp - b.timestamp);
+
+        // Render the messages
+        const html = conversation.map(msg => {
+          const isSent = (msg.sender.toLowerCase() === currentUser.toLowerCase());
+          return `
+            <div class="message ${isSent ? 'sent' : 'received'}">
+              ${msg.message}
+              <div class="meta">
+                ${new Date(msg.timestamp * 1000).toLocaleString()}
+              </div>
+            </div>
+          `;
+        }).join('');
+        document.getElementById('messageList').innerHTML = html;
+        
+        // Scroll to bottom of message list
+        const messageList = document.getElementById('messageList');
+        messageList.scrollTop = messageList.scrollHeight;
+      } catch (err) {
+        console.error('Error loading local messages:', err);
+      }
+    }
+
+    async function sendMessage() {
+      if (!currentUser || !currentContact) {
+        alert('Please select a local ID and a contact first.');
+        return;
+      }
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if (!text) return;
+      try {
+        const resp = await fetch('/api/send_message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sender: currentUser, recipient: currentContact, message: text })
+        });
+        const msg = await resp.text();
+        console.log('Send msg resp:', msg);
+        input.value = '';
+        // Immediately pull + reload conversation
+        await pullMessages();
+        await loadMessages();
+      } catch (err) {
+        console.error('Error sending message:', err);
+      }
+    }
+
+    // Handle pressing Enter in the chat input
+    document.getElementById('messageInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        sendMessage();
+      }
+    });
+
+    // Settings / Key Management
+    function showSettings() {
+      document.getElementById('settingsModal').classList.add('show');
+    }
+
+    function hideSettings() {
+      document.getElementById('settingsModal').classList.remove('show');
+    }
+
+    async function generateKey() {
+      const id = document.getElementById('genId').value.trim();
+      if (!id) {
+        alert('Please enter an ID for your new key.');
+        return;
+      }
       try {
         const resp = await fetch('/api/generate_key', {
           method: 'POST',
@@ -157,9 +504,11 @@
           body: JSON.stringify({ id })
         });
         const text = await resp.text();
-        alert("Generate Key response:\n" + text);
+        alert(text);
+        // Refresh local IDs after generating
+        await refreshLocalIds();
       } catch (err) {
-        alert("Error generating key:\n" + err);
+        alert('Error generating keys:' + err);
       }
     }
 
@@ -167,106 +516,33 @@
       const id = document.getElementById('importId').value.trim();
       const pubKey = document.getElementById('importPubKey').value.trim();
       if (!id || !pubKey) {
-        alert('Please fill out the ID and the public key text.');
+        alert('Please fill out both contact ID and public key.');
         return;
       }
-      // Example: POST /api/import_key with JSON body { id: 'bob', publicKeyPem: '...' }
+      if (!currentUser) {
+        alert('Please select a local ID first.');
+        return;
+      }
       try {
         const resp = await fetch('/api/import_key', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, publicKeyPem: pubKey })
+          body: JSON.stringify({ 
+            id, 
+            publicKeyPem: pubKey,
+            userId: currentUser 
+          })
         });
         const text = await resp.text();
-        alert("Import Key response:\n" + text);
+        alert(text);
+        // If successful, we might want to loadContacts again if currentUser is set
+        if (currentUser) {
+          await loadContacts();
+        }
       } catch (err) {
-        alert("Error importing key:\n" + err);
+        alert('Error importing key: ' + err);
       }
     }
-
-    async function refreshKeys() {
-      const id = document.getElementById('identifier').value.trim();
-      if (!id) {
-        alert('Please enter an identifier to list keys for.');
-        return;
-      }
-      // Example: GET /api/keys?identifier=alice
-      try {
-        const resp = await fetch('/api/keys?identifier=' + encodeURIComponent(id));
-        const text = await resp.text();
-        document.getElementById('keysContainer').textContent = text;
-      } catch (err) {
-        document.getElementById('keysContainer').textContent = "Error listing keys: " + err;
-      }
-    }
-
-    async function sendMessage() {
-      const sender = document.getElementById('senderId').value.trim();
-      const recipient = document.getElementById('recipientId').value.trim();
-      const message = document.getElementById('messageContent').value.trim();
-      if (!sender || !recipient || !message) {
-        alert('Please fill out all fields to send a message.');
-        return;
-      }
-      // Example: POST /api/send_message with JSON { sender, recipient, message }
-      try {
-        const resp = await fetch('/api/send_message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sender, recipient, message })
-        });
-        const text = await resp.text();
-        document.getElementById('sendResponse').textContent = text;
-      } catch (err) {
-        document.getElementById('sendResponse').textContent = "Error: " + err;
-      }
-    }
-
-    async function pullMessages() {
-      const id = document.getElementById('pullId').value.trim();
-      if (!id) {
-        alert('Please enter your ID to pull messages.');
-        return;
-      }
-      // Example: POST /api/pull_messages with JSON { id }
-      try {
-        const resp = await fetch('/api/pull_messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id })
-        });
-        const text = await resp.text();
-        document.getElementById('pullResponse').textContent = text;
-      } catch (err) {
-        document.getElementById('pullResponse').textContent = "Error: " + err;
-      }
-    }
-
-    async function loadStoredMessages() {
-      const id = document.getElementById('historyId').value.trim();
-      if (!id) {
-        alert('Please enter your ID to load messages.');
-        return;
-      }
-      try {
-        const resp = await fetch('/api/stored_messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id })
-        });
-        const messages = await resp.json();
-        const html = messages.map(msg => 
-          `<div class="message">
-            <strong>${msg.sender}</strong> (${new Date(msg.timestamp * 1000).toLocaleString()}):
-            <br>${msg.message}
-          </div>`
-        ).join('\n');
-        document.getElementById('storedMessages').innerHTML = html;
-      } catch (err) {
-        document.getElementById('storedMessages').textContent = "Error: " + err;
-      }
-    }
-
   </script>
 </body>
 </html>

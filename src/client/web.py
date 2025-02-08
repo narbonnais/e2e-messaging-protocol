@@ -4,7 +4,8 @@ from pathlib import Path
 import os
 
 from .lib import (generate_keys, import_public_key, send_message,
-                        pull_messages, get_client_db_path, get_messages, init_client_db)
+                        pull_messages, get_client_db_path, get_messages, init_client_db,
+                        get_contacts, get_id_from_pubkey)
 
 app = Flask(__name__)
 
@@ -28,20 +29,27 @@ def api_generate_key():
 @app.route("/api/import_key", methods=['POST'])
 def api_import_key():
     data = request.json
-    identifier = data.get('id')
+    identifier = data.get('id')  # Contact's ID
     public_key_pem = data.get('publicKeyPem')
-    if not identifier or not public_key_pem:
+    user_id = data.get('userId')  # Local user's ID
+    
+    if not all([identifier, public_key_pem]):
         return "Error: Missing fields", 400
 
     # Write to temp file
     temp_file = f"temp_{identifier}_pub.pem"
-    with open(temp_file, "w") as f:
-        f.write(public_key_pem)
     try:
-        import_public_key(identifier, temp_file)
+        with open(temp_file, "w") as f:
+            f.write(public_key_pem)
+        
+        db_path = get_client_db_path(user_id) if user_id else None
+        import_public_key(identifier, temp_file, db_path)
+        return "Public key imported successfully"
+    except Exception as e:
+        return f"Error: {str(e)}", 500
     finally:
-        os.unlink(temp_file)
-    return "Public key imported successfully"
+        if os.path.exists(temp_file):
+            os.unlink(temp_file)
 
 @app.route("/api/send_message", methods=['POST'])
 def api_send_message():
@@ -74,11 +82,42 @@ def api_stored_messages():
         db_path = get_client_db_path(identifier)
         init_client_db(db_path)  # Ensure DB exists
         messages = get_messages(db_path)
-        return jsonify([{
-            'sender': sender_id,
-            'message': message,
-            'timestamp': timestamp
-        } for sender_id, message, timestamp in messages])
+        
+        # Convert messages to include IDs where possible
+        formatted_messages = []
+        for sender_pub, recipient_pub, message, timestamp in messages:
+            sender_id = get_id_from_pubkey(sender_pub.encode('utf-8')) or "unknown"
+            recipient_id = get_id_from_pubkey(recipient_pub.encode('utf-8')) or "unknown"
+            formatted_messages.append({
+                'sender': sender_id,
+                'recipient': recipient_id,
+                'message': message,
+                'timestamp': timestamp,
+                'sender_pubkey': sender_pub,
+                'recipient_pubkey': recipient_pub
+            })
+            
+        return jsonify(formatted_messages)
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+@app.route('/api/list_local_ids')
+def api_list_local_ids():
+    data_dir = Path(".data")
+    if not data_dir.exists():
+        return jsonify([])
+    dirs = [d.name for d in data_dir.iterdir() if d.is_dir()]
+    return jsonify(dirs)
+
+@app.route("/api/list_contacts", methods=['GET'])
+def api_list_contacts():
+    identifier = request.args.get('identifier')
+    if not identifier:
+        return "Error: Missing identifier", 400
+    try:
+        db_path = get_client_db_path(identifier)
+        contacts = get_contacts(db_path)
+        return jsonify(contacts)
     except Exception as e:
         return f"Error: {str(e)}", 500
 

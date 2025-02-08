@@ -47,26 +47,34 @@ def generate_keys(identifier: str):
     print(f" - {private_path}")
     print(f" - {public_path}")
 
-def import_public_key(identifier: str, public_key_path: str):
+def import_public_key(identifier: str, public_key_path: str, db_path: str = None):
     """
-    Import a public key for `identifier` into .data/<identifier>/public_key.pem
+    Import a public key for `identifier` into contacts database
     """
-    key_dir = Path(".data") / identifier
-    key_dir.mkdir(parents=True, exist_ok=True)
-
-    dest_path = key_dir / "public_key.pem"
     try:
         with open(public_key_path, "rb") as f:
             key_data = f.read()
             # Check it's a valid public key
             serialization.load_pem_public_key(key_data)
-
-        with dest_path.open("wb") as f:
-            f.write(key_data)
-        print(f"Imported public key to {dest_path}")
+            
+        if db_path is None:
+            # Get current user's DB path from the directory structure
+            data_dir = Path(".data")
+            user_dirs = [d for d in data_dir.iterdir() if d.is_dir()]
+            if not user_dirs:
+                raise Exception("No local user found. Generate a key pair first.")
+            db_path = get_client_db_path(user_dirs[0].name)
+        
+        # Initialize database if needed
+        init_client_db(db_path)
+            
+        # Store in database
+        if store_contact(db_path, identifier, key_data):
+            return f"Imported public key for {identifier}"
+        else:
+            raise Exception("Failed to store contact in database")
     except Exception as e:
-        print(f"Error importing key: {str(e)}")
-        sys.exit(1)
+        raise Exception(f"Error importing key: {str(e)}")
 
 def get_key_path(identifier: str, private: bool=False) -> Path:
     suffix = "private_key.pem" if private else "public_key.pem"
@@ -133,6 +141,13 @@ def send_message(server: str, port: int,
             s.connect((server, port))
             s.sendall(send_cmd.encode('utf-8'))
             resp = s.recv(4096).decode('utf-8', errors='ignore').strip()
+            
+            # If message was sent successfully, store it locally
+            if resp.startswith("OK"):
+                db_path = get_client_db_path(sender_id)
+                init_client_db(db_path)
+                store_decrypted_message(db_path, sender_pub_pem, recipient_pub_pem, message)
+                
         return resp
     except FileNotFoundError as e:
         return f"Error: {str(e)}"
@@ -177,12 +192,15 @@ def pull_messages(server: str, port: int, identifier: str) -> str:
         if resp.startswith("ERROR:"):
             return resp
             
+        # Check for no messages response
+        if resp.startswith("OK: No messages"):
+            return "No new messages"
+            
         # Remove "MESSAGES:" prefix if present
         if resp.startswith("MESSAGES:"):
             resp = resp[9:].strip()
             
         if resp:  # Only process if there are messages
-            # Split response into individual messages
             messages = resp.split("\n")
             for msg in messages:
                 if not msg:
@@ -208,12 +226,10 @@ def pull_messages(server: str, port: int, identifier: str) -> str:
                         )
                     ).decode('utf-8')
 
-                    # Get sender ID from their public key
-                    sender_id = get_id_from_pubkey(sender_pub_pem)
-                    decrypted_messages.append((sender_id, plaintext))
+                    decrypted_messages.append((sender_pub_pem, plaintext))
                     
-                    # Store the decrypted message
-                    store_decrypted_message(db_path, sender_id, plaintext)
+                    # Store the decrypted message with public keys
+                    store_decrypted_message(db_path, sender_pub_pem, pub_pem, plaintext)
                 except Exception as e:
                     logging.error(f"Error decrypting message: {str(e)}")
                     continue
@@ -234,15 +250,33 @@ def get_id_from_pubkey(pub_key_pem: bytes) -> str:
     if not key_dir.exists():
         return "unknown"
     
+    # Normalize the input public key by loading and re-encoding it
+    try:
+        pub_key = serialization.load_pem_public_key(pub_key_pem)
+        normalized_pem = pub_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+    except Exception:
+        return "unknown"
+    
     for user_dir in key_dir.iterdir():
         if not user_dir.is_dir():
             continue
         pub_key_path = user_dir / "public_key.pem"
         if pub_key_path.exists():
-            with pub_key_path.open('rb') as f:
-                if f.read() == pub_key_pem:
-                    return user_dir.name
-    return "unknown" 
+            try:
+                with pub_key_path.open('rb') as f:
+                    stored_key = serialization.load_pem_public_key(f.read())
+                    stored_pem = stored_key.public_bytes(
+                        encoding=serialization.Encoding.PEM,
+                        format=serialization.PublicFormat.SubjectPublicKeyInfo
+                    )
+                    if stored_pem == normalized_pem:
+                        return user_dir.name.lower()  # Return lowercase ID
+            except Exception:
+                continue
+    return "unknown"
 
 def get_client_db_path(identifier: str) -> str:
     """Get the path to a client's message database."""
@@ -250,24 +284,93 @@ def get_client_db_path(identifier: str) -> str:
     db_dir.mkdir(parents=True, exist_ok=True)
     return str(db_dir / "messages.db")
 
-def store_decrypted_message(db_path: str, sender_id: str, message: str):
+def store_decrypted_message(db_path: str, sender_pubkey: bytes, recipient_pubkey: bytes, message: str):
     """Store a decrypted message in the client's database."""
     with db_lock, sqlite3.connect(db_path) as conn:
         c = conn.cursor()
         c.execute("""
-        INSERT INTO messages (sender_id, message, timestamp, received_time)
-        VALUES (?, ?, ?, ?)
-        """, (sender_id, message, time.time(), time.time()))
+        INSERT INTO messages (sender_pubkey, recipient_pubkey, message, timestamp, received_time)
+        VALUES (?, ?, ?, ?, ?)
+        """, (sender_pubkey.decode('utf-8'), recipient_pubkey.decode('utf-8'), 
+              message, time.time(), time.time()))
         conn.commit()
 
-def get_messages(db_path: str, limit: int = 100) -> List[Tuple[str, str, float]]:
+def get_messages(db_path: str, limit: int = 100) -> List[Tuple[str, str, str, float]]:
     """Retrieve stored messages from the client database."""
     with db_lock, sqlite3.connect(db_path) as conn:
         c = conn.cursor()
         c.execute("""
-        SELECT sender_id, message, timestamp
+        SELECT sender_pubkey, recipient_pubkey, message, timestamp
         FROM messages
         ORDER BY timestamp DESC
         LIMIT ?
         """, (limit,))
         return c.fetchall()
+
+def init_client_db(db_path: str):
+    """Initialize the client database with messages and contacts tables."""
+    with db_lock, sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+        # Messages table - store public keys instead of IDs
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_pubkey TEXT NOT NULL,
+            recipient_pubkey TEXT NOT NULL,
+            message TEXT NOT NULL,
+            timestamp REAL NOT NULL,
+            received_time REAL NOT NULL
+        )
+        """)
+        # Contacts table remains the same
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS contacts (
+            id TEXT PRIMARY KEY,
+            public_key_pem TEXT NOT NULL,
+            added_time REAL NOT NULL
+        )
+        """)
+        conn.commit()
+
+def store_contact(db_path: str, contact_id: str, public_key_pem: bytes) -> bool:
+    """Store or update a contact's public key in the database."""
+    with db_lock, sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+        try:
+            c.execute("""
+            INSERT OR REPLACE INTO contacts (id, public_key_pem, added_time)
+            VALUES (?, ?, ?)
+            """, (contact_id, public_key_pem.decode('utf-8'), time.time()))
+            conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error storing contact: {str(e)}")
+            return False
+
+def get_contacts(db_path: str) -> List[str]:
+    """Get list of contact IDs from the database."""
+    with db_lock, sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+        c.execute("SELECT id FROM contacts ORDER BY id")
+        return [row[0] for row in c.fetchall()]
+
+def get_contact_pubkey(db_path: str, contact_id: str) -> bytes:
+    """Get a contact's public key from the database."""
+    with db_lock, sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+        c.execute("SELECT public_key_pem FROM contacts WHERE id = ?", (contact_id,))
+        result = c.fetchone()
+        if result:
+            return result[0].encode('utf-8')
+        return None
+
+def fix_message_case(db_path: str):
+    """One-time fix for message ID casing."""
+    with db_lock, sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+        c.execute("""
+        UPDATE messages 
+        SET sender_id = LOWER(sender_id),
+            recipient_id = LOWER(recipient_id)
+        """)
+        conn.commit()
