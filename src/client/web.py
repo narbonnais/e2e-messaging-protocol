@@ -5,7 +5,7 @@ import os
 
 from .lib import (generate_keys, import_public_key, send_message,
                         pull_messages, get_client_db_path, get_messages, init_client_db,
-                        get_contacts, get_id_from_pubkey)
+                        get_contacts, get_id_from_pubkey, get_server_config, update_server_config)
 
 app = Flask(__name__)
 DATA_DIR = ".data"
@@ -60,7 +60,10 @@ def api_send_message():
     message = data.get('message')
     if not all([sender, recipient, message]):
         return "Error: Missing fields", 400
-    resp = send_message("127.0.0.1", 50000, sender, recipient, message)
+    
+    db_path = get_client_db_path(sender)
+    host, port = get_server_config(db_path)
+    resp = send_message(host, port, sender, recipient, message)
     return resp
 
 @app.route("/api/pull_messages", methods=['POST'])
@@ -69,7 +72,10 @@ def api_pull_messages():
     identifier = data.get('id')
     if not identifier:
         return "Error: Missing 'id'", 400
-    resp = pull_messages("127.0.0.1", 50000, identifier)
+    
+    db_path = get_client_db_path(identifier)
+    host, port = get_server_config(db_path)
+    resp = pull_messages(host, port, identifier)
     return resp
 
 @app.route("/api/stored_messages", methods=['POST'])
@@ -140,6 +146,42 @@ def get_public_key():
     except Exception as e:
         print(f"Error reading public key: {e}")
         return 'Error reading public key', 500
+
+@app.route("/api/server_config", methods=['GET'])
+def api_get_server_config():
+    identifier = request.args.get('id')
+    if not identifier:
+        return "Error: Missing identifier", 400
+    try:
+        db_path = get_client_db_path(identifier)
+        host, port = get_server_config(db_path)
+        return jsonify({"host": host, "port": port})
+    except Exception as e:
+        return f"Error: {str(e)}", 500
+
+@app.route("/api/server_config", methods=['POST'])
+def api_update_server_config():
+    data = request.json
+    identifier = data.get('id')
+    host = data.get('host')
+    port = data.get('port')
+    
+    if not all([identifier, host, port]):
+        return "Error: Missing required fields", 400
+        
+    try:
+        port = int(port)
+        if port < 1 or port > 65535:
+            return "Error: Invalid port number", 400
+            
+        db_path = get_client_db_path(identifier)
+        if update_server_config(db_path, host, port):
+            return "Server configuration updated successfully"
+        return "Error updating server configuration", 500
+    except ValueError:
+        return "Error: Port must be a number", 400
+    except Exception as e:
+        return f"Error: {str(e)}", 500
 
 def main():
     logging.basicConfig(level=logging.INFO)

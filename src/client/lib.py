@@ -308,7 +308,7 @@ def get_messages(db_path: str, limit: int = 100) -> List[Tuple[str, str, str, fl
         return c.fetchall()
 
 def init_client_db(db_path: str):
-    """Initialize the client database with messages and contacts tables."""
+    """Initialize the client database with messages, contacts, and config tables."""
     with db_lock, sqlite3.connect(db_path) as conn:
         c = conn.cursor()
         # Messages table - store public keys instead of IDs
@@ -329,6 +329,21 @@ def init_client_db(db_path: str):
             public_key_pem TEXT NOT NULL,
             added_time REAL NOT NULL
         )
+        """)
+        # Add config table
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS config (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        )
+        """)
+        
+        # Insert default server settings if they don't exist
+        c.execute("""
+        INSERT OR IGNORE INTO config (key, value) 
+        VALUES 
+            ('server_host', '127.0.0.1'),
+            ('server_port', '50000')
         """)
         conn.commit()
 
@@ -374,3 +389,26 @@ def fix_message_case(db_path: str):
             recipient_id = LOWER(recipient_id)
         """)
         conn.commit()
+
+def get_server_config(db_path: str) -> tuple:
+    """Get server host and port from config."""
+    with db_lock, sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+        c.execute("SELECT value FROM config WHERE key = 'server_host'")
+        host = c.fetchone()[0]
+        c.execute("SELECT value FROM config WHERE key = 'server_port'")
+        port = int(c.fetchone()[0])
+        return host, port
+
+def update_server_config(db_path: str, host: str, port: int) -> bool:
+    """Update server configuration."""
+    try:
+        with db_lock, sqlite3.connect(db_path) as conn:
+            c = conn.cursor()
+            c.execute("UPDATE config SET value = ? WHERE key = 'server_host'", (host,))
+            c.execute("UPDATE config SET value = ? WHERE key = 'server_port'", (str(port),))
+            conn.commit()
+        return True
+    except Exception as e:
+        logging.error(f"Error updating server config: {str(e)}")
+        return False

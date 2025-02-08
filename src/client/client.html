@@ -319,6 +319,13 @@
       <h2>Settings / Key Management</h2>
       
       <div class="form-group">
+        <label>Server Configuration:</label>
+        <input type="text" id="serverHost" placeholder="Server host (e.g. 127.0.0.1)" />
+        <input type="number" id="serverPort" placeholder="Server port (e.g. 50000)" />
+        <button onclick="updateServerConfig()">Update Server</button>
+      </div>
+
+      <div class="form-group">
         <label>Generate a New Key Pair:</label>
         <input type="text" id="genId" placeholder="Your new ID e.g. alice" />
         <button onclick="generateKey()">Generate</button>
@@ -578,6 +585,7 @@
     // Settings / Key Management
     function showSettings() {
       document.getElementById('settingsModal').classList.add('show');
+      loadServerConfig();  // Load current server config when opening settings
     }
 
     function hideSettings() {
@@ -767,6 +775,52 @@
         }
       } catch (err) {
         alert('Error generating key: ' + err);
+      }
+    }
+
+    async function loadServerConfig() {
+      if (!currentUser) return;
+      
+      try {
+        const resp = await fetch(`/api/server_config?id=${encodeURIComponent(currentUser)}`);
+        const config = await resp.json();
+        
+        document.getElementById('serverHost').value = config.host;
+        document.getElementById('serverPort').value = config.port;
+      } catch (err) {
+        console.error('Error loading server config:', err);
+      }
+    }
+
+    async function updateServerConfig() {
+      if (!currentUser) {
+        alert('Please select a local ID first');
+        return;
+      }
+      
+      const host = document.getElementById('serverHost').value.trim();
+      const port = document.getElementById('serverPort').value.trim();
+      
+      if (!host || !port) {
+        alert('Please enter both host and port');
+        return;
+      }
+      
+      try {
+        const resp = await fetch('/api/server_config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: currentUser,
+            host: host,
+            port: parseInt(port)
+          })
+        });
+        
+        const result = await resp.text();
+        alert(result);
+      } catch (err) {
+        alert('Error updating server config: ' + err);
       }
     }
   </script>
