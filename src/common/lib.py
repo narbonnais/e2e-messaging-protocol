@@ -1,5 +1,3 @@
-# common_lib.py
-
 import os
 import time
 import sqlite3
@@ -137,3 +135,18 @@ def verify_signature(public_key_pem: bytes, signature: bytes, message: bytes):
     except Exception as e:
         logging.error(f"Error verifying signature: {str(e)}")
         raise
+
+def init_client_db(db_path: str):
+    """Initialize the client-side SQLite database for storing decrypted messages."""
+    with db_lock, sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+        c.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_id TEXT NOT NULL,
+            message TEXT NOT NULL,
+            timestamp REAL NOT NULL,
+            received_time REAL NOT NULL
+        );
+        """)
+        conn.commit()

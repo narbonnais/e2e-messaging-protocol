@@ -1,12 +1,10 @@
-# client_web_server.py
-
 from flask import Flask, request, jsonify, send_from_directory
 import logging
 from pathlib import Path
 import os
 
-from client_lib import (generate_keys, import_public_key, send_message,
-                        pull_messages)
+from .lib import (generate_keys, import_public_key, send_message,
+                        pull_messages, get_client_db_path, get_messages, init_client_db)
 
 app = Flask(__name__)
 
@@ -64,6 +62,25 @@ def api_pull_messages():
         return "Error: Missing 'id'", 400
     resp = pull_messages("127.0.0.1", 50000, identifier)
     return resp
+
+@app.route("/api/stored_messages", methods=['POST'])
+def api_stored_messages():
+    data = request.json
+    identifier = data.get('id')
+    if not identifier:
+        return "Error: Missing 'id'", 400
+    
+    try:
+        db_path = get_client_db_path(identifier)
+        init_client_db(db_path)  # Ensure DB exists
+        messages = get_messages(db_path)
+        return jsonify([{
+            'sender': sender_id,
+            'message': message,
+            'timestamp': timestamp
+        } for sender_id, message, timestamp in messages])
+    except Exception as e:
+        return f"Error: {str(e)}", 500
 
 def main():
     logging.basicConfig(level=logging.INFO)

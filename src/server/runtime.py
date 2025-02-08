@@ -1,10 +1,8 @@
-# server_runtime.py
-
 import argparse
 import logging
 import sys
 
-from server_lib import run_server
+from .lib import run_server
 
 def setup_logging():
     logging.basicConfig(

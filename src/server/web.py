@@ -6,7 +6,7 @@ import sqlite3
 from datetime import datetime
 import os
 
-from common_lib import db_lock, DB_PATH, cleanup_old_pulled_messages, init_db
+from src.common.lib import db_lock, DB_PATH, cleanup_old_pulled_messages, init_db
 
 app = Flask(__name__)
 

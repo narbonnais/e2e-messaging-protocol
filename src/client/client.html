@@ -117,6 +117,16 @@
     <div id="pullResponse" class="messages"></div>
   </div>
 
+  <div class="section">
+    <h2>Messages History</h2>
+    <div class="row">
+      <label>Your ID:</label>
+      <input id="historyId" type="text" value="alice" />
+    </div>
+    <button onclick="loadStoredMessages()">Load Messages</button>
+    <div id="storedMessages" class="messages"></div>
+  </div>
+
   <script>
     // -----------------------------
     // NOTE: The below code is purely illustrative.
@@ -229,6 +239,31 @@
         document.getElementById('pullResponse').textContent = text;
       } catch (err) {
         document.getElementById('pullResponse').textContent = "Error: " + err;
+      }
+    }
+
+    async function loadStoredMessages() {
+      const id = document.getElementById('historyId').value.trim();
+      if (!id) {
+        alert('Please enter your ID to load messages.');
+        return;
+      }
+      try {
+        const resp = await fetch('/api/stored_messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+        const messages = await resp.json();
+        const html = messages.map(msg => 
+          `<div class="message">
+            <strong>${msg.sender}</strong> (${new Date(msg.timestamp * 1000).toLocaleString()}):
+            <br>${msg.message}
+          </div>`
+        ).join('\n');
+        document.getElementById('storedMessages').innerHTML = html;
+      } catch (err) {
+        document.getElementById('storedMessages').textContent = "Error: " + err;
       }
     }
 

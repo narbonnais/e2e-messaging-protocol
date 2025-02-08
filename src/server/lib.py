@@ -1,9 +1,7 @@
-# server_lib.py
-
 import logging
 import socket
 import threading
-from common_lib import (store_message, pull_and_move_messages,
+from src.common.lib import (store_message, pull_and_move_messages,
                         verify_signature, cleanup_old_pulled_messages,
                         init_db, db_lock, DB_PATH)
 

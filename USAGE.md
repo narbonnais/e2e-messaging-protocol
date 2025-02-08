@@ -1,123 +1,106 @@
-# Detailed Usage Guide
+# Secure Messenger Usage Guide
 
-## Key Management
+A guide for using this web-based end-to-end encrypted messaging system.
 
-### Generate RSA Keys
+## Starting the Servers
 
-Each user needs their own public/private key pair. Generate them using:
-
+### Start Server Runtime
 ```bash
-python secure_messenger.py generate_keys --id <username>
+python -m src.server.runtime
 ```
 
-This creates two files in `.data/<username>/`:
-- `private_key.pem` - Keep this secret! Never share it.
-- `public_key.pem` - Share this with other users who want to send you messages.
-
-Example:
+### Start Client Web Interface
 ```bash
-python secure_messenger.py generate_keys --id alice
-python secure_messenger.py generate_keys --id bob
+python -m src.client.web
 ```
+Access the client interface at: http://127.0.0.1:8000
 
-### Import Public Keys
-
-To send messages to someone, you need their public key. Import it using:
-
+### Start Server Web Interface
 ```bash
-python secure_messenger.py import_key --id <their_username> --public_key <path_to_their_public_key>
+python -m src.server.web
 ```
+Access the server dashboard at: http://127.0.0.1:8001
 
-Example:
-```bash
-# Bob imports Alice's public key
-python secure_messenger.py import_key --id alice --public_key .data/alice/public_key.pem
-```
+## Using the Client Interface
 
-## Running the Server
+### Key Management
 
-The server stores encrypted messages and handles delivery. Start it with:
+1. Generate Keys
+   - Enter your identifier (e.g., "alice") in the "Identifier" field
+   - Click "Generate Key Pair"
+   - This creates your public and private keys in the `.data` directory
 
-```bash
-python secure_messenger.py server --host <ip_address> --port <port_number>
-```
+2. Import Public Keys
+   - Enter the other user's identifier (e.g., "bob") in "Import Public Key for"
+   - Paste their public key PEM content into the textarea
+   - Click "Import Public Key"
 
-Examples:
-```bash
-# Listen only on localhost
-python secure_messenger.py server --host 127.0.0.1 --port 50000
-
-# Listen on all interfaces (public)
-python secure_messenger.py server --host 0.0.0.0 --port 50000
-```
-
-The server maintains two tables:
-- `messages`: Stores undelivered messages
-- `pulled_messages`: Stores delivered messages for up to 7 days
-
-## Client Operations
+3. View Keys
+   - Click "View My Keys" to see your available keys
+   - You can see which users' public keys you have imported
 
 ### Sending Messages
 
-To send a message:
-
-```bash
-python secure_messenger.py client send \
-    --server <server_ip> \
-    --port <server_port> \
-    --sender <your_username> \
-    --recipient <recipient_username> \
-    --message "Your message here"
-```
-
-Example:
-```bash
-python secure_messenger.py client send \
-    --server 127.0.0.1 \
-    --port 50000 \
-    --sender alice \
-    --recipient bob \
-    --message "Hello Bob! How are you?"
-```
+1. Enter message details:
+   - Your ID (sender): Your identifier (e.g., "alice")
+   - Recipient ID: The recipient's identifier (e.g., "bob")
+   - Message Text: Type your message in the textarea
+   
+2. Click "Send" to encrypt and send the message
 
 ### Retrieving Messages
 
-To check for and retrieve your messages:
+1. Enter your ID in the "Pull Messages" section
+2. Click "Pull" to check for and decrypt your messages
+3. Decrypted messages will appear in the messages area
 
-```bash
-python secure_messenger.py client pull \
-    --server <server_ip> \
-    --port <server_port> \
-    --id <your_username>
-```
+## Using the Server Dashboard
 
-Example:
-```bash
-python secure_messenger.py client pull \
-    --server 127.0.0.1 \
-    --port 50000 \
-    --id bob
-```
+### Metrics View
+- View current message counts
+- Monitor message queue status
+- Check when messages were last cleaned up
+
+### Live Log
+- Monitor server activity in real-time
+- Track message delivery status
+- View any system errors or warnings
 
 ## Security Notes
 
-1. Keep your private key secure:
-   - Never share your private key
-   - Back up your private key safely
-   - Store it with appropriate file permissions
+1. Private Key Security
+   - Never share or expose your private key
+   - Keep your `.data` directory secure
+   - Use appropriate file permissions
 
-2. Message Security:
-   - Messages are encrypted with the recipient's public key
-   - Only the recipient's private key can decrypt messages
-   - Messages are signed by the sender's private key
-   - The server can't read message contents
+2. Message Security
+   - End-to-end encryption using RSA-2048
+   - Messages are signed by the sender
+   - Server only stores encrypted data
 
-3. Server Storage:
-   - Messages are automatically deleted after 7 days
-   - Once pulled, messages move to a separate table
-   - The server only stores encrypted data
+3. Data Retention
+   - Messages auto-delete after 7 days
+   - Pulled messages move to separate storage
+   - Regular cleanup of old messages
 
-4. Network Security:
-   - Consider using a firewall to restrict server access
-   - For production use, run behind a reverse proxy with TLS
-   - Monitor server logs for suspicious activity
+4. Network Security
+   - Use firewall rules for server access
+   - Consider TLS for production use
+   - Monitor server logs regularly
+
+## Troubleshooting
+
+1. Connection Issues
+   - Verify both web servers are running
+   - Check browser console for errors
+   - Ensure correct ports are available (8000 and 8001)
+
+2. Key Problems
+   - Ensure proper key format when importing
+   - Check key permissions in `.data` directory
+   - Verify correct identifiers are being used
+
+3. Message Issues
+   - Confirm recipient's public key is imported
+   - Check server dashboard for errors
+   - Verify message encryption/decryption
