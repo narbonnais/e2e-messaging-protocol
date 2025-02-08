@@ -8,6 +8,7 @@ from .lib import (generate_keys, import_public_key, send_message,
                         get_contacts, get_id_from_pubkey)
 
 app = Flask(__name__)
+DATA_DIR = ".data"
 
 # Serve the client HTML (assume client.html is in the same folder)
 @app.route("/")
@@ -120,6 +121,25 @@ def api_list_contacts():
         return jsonify(contacts)
     except Exception as e:
         return f"Error: {str(e)}", 500
+
+@app.route('/api/get_public_key')
+def get_public_key():
+    identifier = request.args.get('id')
+    if not identifier:
+        return 'Missing id parameter', 400
+        
+    try:
+        # Read the public key file
+        key_path = os.path.join(DATA_DIR, identifier, 'public_key.pem')
+        if not os.path.exists(key_path):
+            return f'No public key found for {identifier}', 404
+            
+        with open(key_path, 'r') as f:
+            return f.read()
+            
+    except Exception as e:
+        print(f"Error reading public key: {e}")
+        return 'Error reading public key', 500
 
 def main():
     logging.basicConfig(level=logging.INFO)

@@ -223,6 +223,41 @@
       border-radius: 4px;
       cursor: pointer;
     }
+
+    /* Key Display Modal */
+    .key-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .key-modal.show {
+      display: flex;
+    }
+
+    .key-modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 500px;
+    }
+
+    .key-modal textarea {
+      width: 100%;
+      height: 200px;
+      margin: 10px 0;
+      font-family: monospace;
+      padding: 8px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 5px;
+    }
   </style>
 </head>
 <body>
@@ -239,7 +274,11 @@
         <div id="localIds" class="local-ids">
           <!-- We'll populate this with /api/list_local_ids -->
         </div>
-        <button class="btn-small" onclick="refreshLocalIds()">Refresh</button>
+        <div class="button-row">
+          <button class="btn-small" onclick="refreshLocalIds()">Refresh</button>
+          <button class="btn-small" onclick="copyLocalPublicKey()">Copy Key</button>
+          <button class="btn-small" onclick="showAddLocalIdModal()">Add</button>
+        </div>
       </div>
 
       <div class="section">
@@ -247,7 +286,10 @@
         <div id="contactList" class="contact-list">
           <!-- We could list known contact IDs for the selected user -->
         </div>
-        <button class="btn-small" onclick="loadContacts()">Refresh</button>
+        <div class="button-row">
+          <button class="btn-small" onclick="loadContacts()">Refresh</button>
+          <button class="btn-small" onclick="showAddContactModal()">Add Contact</button>
+        </div>
       </div>
     </div>
 
@@ -290,6 +332,57 @@
       </div>
 
       <button class="close-btn" onclick="hideSettings()">Close</button>
+    </div>
+  </div>
+
+  <!-- Key Display Modal -->
+  <div class="modal key-modal" id="keyModal">
+    <div class="modal-content key-modal-content">
+      <h2 id="keyModalTitle">Public Key</h2>
+      <textarea id="keyModalContent" readonly></textarea>
+      <div class="button-row">
+        <button onclick="copyKeyToClipboard()">Copy to Clipboard</button>
+        <button class="close-btn" onclick="hideKeyModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Contact Modal -->
+  <div class="modal" id="addContactModal">
+    <div class="modal-content">
+      <h2>Add New Contact</h2>
+      
+      <div class="form-group">
+        <label>Contact ID:</label>
+        <input type="text" id="newContactId" placeholder="Contact's ID e.g. bob" />
+      </div>
+
+      <div class="form-group">
+        <label>Contact's Public Key:</label>
+        <textarea id="newContactKey" placeholder="Paste contact's public key PEM here"></textarea>
+      </div>
+
+      <div class="button-row">
+        <button onclick="addNewContact()">Add Contact</button>
+        <button class="close-btn" onclick="hideAddContactModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Local ID Modal -->
+  <div class="modal" id="addLocalIdModal">
+    <div class="modal-content">
+      <h2>Generate New Local ID</h2>
+      
+      <div class="form-group">
+        <label>New ID:</label>
+        <input type="text" id="newLocalId" placeholder="Your new ID e.g. alice" />
+      </div>
+
+      <div class="button-row">
+        <button onclick="addNewLocalId()">Generate</button>
+        <button class="close-btn" onclick="hideAddLocalIdModal()">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -541,6 +634,139 @@
         }
       } catch (err) {
         alert('Error importing key: ' + err);
+      }
+    }
+
+    // Key Modal Functions
+    function showKeyModal(title, key) {
+      document.getElementById('keyModalTitle').textContent = title;
+      document.getElementById('keyModalContent').value = key;
+      document.getElementById('keyModal').classList.add('show');
+    }
+
+    function hideKeyModal() {
+      document.getElementById('keyModal').classList.remove('show');
+    }
+
+    async function copyKeyToClipboard() {
+      const keyText = document.getElementById('keyModalContent').value;
+      try {
+        await navigator.clipboard.writeText(keyText);
+        alert('Key copied to clipboard!');
+      } catch (err) {
+        console.error('Failed to copy:', err);
+        alert('Failed to copy to clipboard');
+      }
+    }
+
+    async function copyLocalPublicKey() {
+      if (!currentUser) {
+        alert('Please select a local ID first');
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/get_public_key?id=${encodeURIComponent(currentUser)}`);
+        const key = await resp.text();
+        await navigator.clipboard.writeText(key);
+        alert('Public key copied to clipboard!');
+      } catch (err) {
+        console.error('Error copying public key:', err);
+        alert('Error copying public key');
+      }
+    }
+
+    async function showContactPublicKey() {
+      if (!currentUser || !currentContact) {
+        alert('Please select both a local ID and a contact');
+        return;
+      }
+      try {
+        const resp = await fetch(`/api/get_contact_key?userId=${encodeURIComponent(currentUser)}&contactId=${encodeURIComponent(currentContact)}`);
+        const key = await resp.text();
+        showKeyModal(`${currentContact}'s Public Key`, key);
+      } catch (err) {
+        console.error('Error fetching contact key:', err);
+        alert('Error fetching contact key');
+      }
+    }
+
+    function showAddContactModal() {
+      if (!currentUser) {
+        alert('Please select a local ID first');
+        return;
+      }
+      document.getElementById('addContactModal').classList.add('show');
+      // Clear previous values
+      document.getElementById('newContactId').value = '';
+      document.getElementById('newContactKey').value = '';
+    }
+
+    function hideAddContactModal() {
+      document.getElementById('addContactModal').classList.remove('show');
+    }
+
+    async function addNewContact() {
+      const id = document.getElementById('newContactId').value.trim();
+      const pubKey = document.getElementById('newContactKey').value.trim();
+      
+      if (!id || !pubKey) {
+        alert('Please fill out both contact ID and public key');
+        return;
+      }
+
+      try {
+        const resp = await fetch('/api/import_key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            id, 
+            publicKeyPem: pubKey,
+            userId: currentUser 
+          })
+        });
+        const text = await resp.text();
+        alert(text);
+        
+        if (text.includes('successfully')) {
+          hideAddContactModal();
+          await loadContacts(); // Refresh the contact list
+        }
+      } catch (err) {
+        alert('Error adding contact: ' + err);
+      }
+    }
+
+    function showAddLocalIdModal() {
+      document.getElementById('addLocalIdModal').classList.add('show');
+      document.getElementById('newLocalId').value = '';
+    }
+
+    function hideAddLocalIdModal() {
+      document.getElementById('addLocalIdModal').classList.remove('show');
+    }
+
+    async function addNewLocalId() {
+      const id = document.getElementById('newLocalId').value.trim();
+      if (!id) {
+        alert('Please enter an ID');
+        return;
+      }
+
+      try {
+        const resp = await fetch('/api/generate_key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id })
+        });
+        const text = await resp.text();
+        alert(text);
+        
+        if (text.includes('successfully')) {
+          hideAddLocalIdModal();
+          await refreshLocalIds(); // Refresh the local IDs list
+        }
+      } catch (err) {
+        alert('Error generating key: ' + err);
       }
     }
   </script>
