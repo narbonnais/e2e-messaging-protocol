@@ -4,7 +4,7 @@ A guide for using this web-based end-to-end encrypted messaging system.
 
 ## Starting the Servers
 
-### Start Server Runtime
+### Start Message Server
 ```bash
 python -m src.server.runtime
 ```
@@ -15,7 +15,7 @@ python -m src.client.web
 ```
 Access the client interface at: http://127.0.0.1:8000
 
-### Start Server Web Interface
+### Start Server Dashboard
 ```bash
 python -m src.server.web
 ```
@@ -91,9 +91,9 @@ Access the server dashboard at: http://127.0.0.1:8001
 ## Troubleshooting
 
 1. Connection Issues
-   - Verify both web servers are running
+   - Verify all three servers are running
    - Check browser console for errors
-   - Ensure correct ports are available (8000 and 8001)
+   - Ensure ports 8000, 8001, and 50000 are available
 
 2. Key Problems
    - Ensure proper key format when importing

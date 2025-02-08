@@ -1,20 +1,22 @@
 # Secure Messenger
 
-A simple end-to-end encrypted messaging system with a central server that handles message storage and delivery. Messages are encrypted using RSA public key cryptography, ensuring that only the intended recipient can read them.
+A web-based end-to-end encrypted messaging system with a central server that handles message storage and delivery. Messages are encrypted using RSA public key cryptography, ensuring that only the intended recipient can read them.
 
 ## Features
 
 - End-to-end encryption using RSA-2048
 - Message signing to verify sender authenticity
 - Central server for message storage and delivery
+- Web interface for easy message management
+- Server dashboard for monitoring
 - Messages are automatically deleted after 7 days
-- Simple command-line interface
 - Support for multiple users
 
 ## Requirements
 
 - Python 3.7+
 - cryptography library
+- Flask (for web interface)
 - SQLite3 (included with Python)
 
 ## Installation
@@ -27,39 +29,27 @@ cd secure-messenger
 
 2. Install dependencies:
 ```bash
-pip install cryptography
+pip install cryptography flask
 ```
 
 ## Quick Start
 
-1. Generate keys for two users:
+1. Start the message server:
 ```bash
-python secure_messenger.py generate_keys --id alice
-python secure_messenger.py generate_keys --id bob
+python -m src.server.runtime
 ```
 
-2. Exchange public keys between users:
+2. Start the client web interface:
 ```bash
-# Bob imports Alice's public key
-python secure_messenger.py import_key --id alice --public_key .data/alice/public_key.pem
-
-# Alice imports Bob's public key
-python secure_messenger.py import_key --id bob --public_key .data/bob/public_key.pem
+python -m src.client.web
 ```
+Access at: http://127.0.0.1:8000
 
-3. Start the server:
+3. Start the server dashboard:
 ```bash
-python secure_messenger.py server --host 127.0.0.1 --port 50000
+python -m src.server.web
 ```
-
-4. Send and receive messages:
-```bash
-# Alice sends a message to Bob
-python secure_messenger.py client send --server 127.0.0.1 --port 50000 --sender alice --recipient bob --message "Hello Bob!"
-
-# Bob checks his messages
-python secure_messenger.py client pull --server 127.0.0.1 --port 50000 --id bob
-```
+Access at: http://127.0.0.1:8001
 
 ## Security Features
 
@@ -69,7 +59,7 @@ python secure_messenger.py client pull --server 127.0.0.1 --port 50000 --id bob
 - Automatic message cleanup after 7 days
 - Signature verification for message retrieval
 
-## For more detailed usage instructions, see [usage.md](usage.md)
+## For more detailed usage instructions, see [USAGE.md](USAGE.md)
 
 ## License
 
