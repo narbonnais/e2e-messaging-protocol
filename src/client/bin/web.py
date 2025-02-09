@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 import os
 
-from .lib import (generate_keys, import_public_key, send_message,
+from ..client import (generate_keys, import_public_key, send_message,
                         pull_messages, get_client_db_path, get_messages, init_client_db,
                         get_contacts, get_id_from_pubkey, get_server_config, update_server_config)
 
@@ -13,7 +13,7 @@ DATA_DIR = ".data"
 # Serve the client HTML (assume client.html is in the same folder)
 @app.route("/")
 def serve_root():
-    return send_from_directory('.', 'client.html')
+    return send_from_directory('../public', 'client.html')
 
 @app.route("/api/generate_key", methods=['POST'])
 def api_generate_key():

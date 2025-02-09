@@ -12,7 +12,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def serve_root():
-    return send_from_directory('.', 'server.html')
+    return send_from_directory('../public', 'server.html')
 
 @app.route("/api/metrics", methods=['GET'])
 def api_metrics():

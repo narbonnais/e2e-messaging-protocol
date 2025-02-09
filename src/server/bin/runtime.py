@@ -2,7 +2,7 @@ import argparse
 import logging
 import sys
 
-from .lib import run_server
+from ..server import run_server
 
 def setup_logging():
     logging.basicConfig(
