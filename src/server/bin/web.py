@@ -5,8 +5,10 @@ import logging
 import sqlite3
 from datetime import datetime
 import os
+import yaml
+from pathlib import Path
 
-from src.common.lib import db_lock, DB_PATH, cleanup_old_pulled_messages, init_db
+from ..server import db_lock, DB_PATH, cleanup_old_pulled_messages, init_db
 
 app = Flask(__name__)
 
@@ -47,10 +49,32 @@ def api_log():
     except Exception as e:
         return f"Error reading log: {str(e)}", 500
 
+def load_config(config_path: str = None) -> dict:
+    """Load server configuration from YAML file"""
+    default_config = Path("config/server_default.yaml")
+    
+    if not default_config.exists():
+        raise FileNotFoundError(f"Default config not found at {default_config}")
+        
+    with open(default_config) as f:
+        config = yaml.safe_load(f)
+    
+    if config_path and Path(config_path).exists():
+        with open(config_path) as f:
+            custom_config = yaml.safe_load(f)
+            config.update(custom_config)
+            
+    return config
+
+config = load_config()
+
 def main():
     logging.basicConfig(level=logging.INFO)
-    init_db(DB_PATH)
-    app.run(host="127.0.0.1", port=8001, debug=False)
+    web_config = config['web_server']
+    init_db(config['database']['path'])
+    app.run(host=web_config['host'], 
+            port=web_config['port'], 
+            debug=False)
 
 if __name__ == "__main__":
     main()

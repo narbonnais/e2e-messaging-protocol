@@ -1,0 +1,12 @@
+tcp_server:
+  host: "127.0.0.1"
+  port: 50000
+
+web_server:
+  host: "127.0.0.1"
+  port: 8001
+
+database:
+  path: "messages.db"
+  cleanup_interval: 3600  # seconds
+  retention_days: 7 

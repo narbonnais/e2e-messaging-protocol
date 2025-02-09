@@ -2,13 +2,32 @@ from flask import Flask, request, jsonify, send_from_directory
 import logging
 from pathlib import Path
 import os
+import yaml
 
 from ..client import (generate_keys, import_public_key, send_message,
                         pull_messages, get_client_db_path, get_messages, init_client_db,
                         get_contacts, get_id_from_pubkey, get_server_config, update_server_config)
 
 app = Flask(__name__)
-DATA_DIR = ".data"
+
+def load_config(config_path: str = None) -> dict:
+    """Load client configuration from YAML file"""
+    default_config = Path("config/client_default.yaml")
+    
+    if not default_config.exists():
+        raise FileNotFoundError(f"Default config not found at {default_config}")
+        
+    with open(default_config) as f:
+        config = yaml.safe_load(f)
+    
+    if config_path and Path(config_path).exists():
+        with open(config_path) as f:
+            custom_config = yaml.safe_load(f)
+            config.update(custom_config)
+            
+    return config
+
+config = load_config()
 
 # Serve the client HTML (assume client.html is in the same folder)
 @app.route("/")
@@ -185,7 +204,10 @@ def api_update_server_config():
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    app.run(host="127.0.0.1", port=8000, debug=False)
+    web_config = config['web']
+    app.run(host=web_config['host'], 
+            port=web_config['port'], 
+            debug=False)
 
 if __name__ == "__main__":
     main()
