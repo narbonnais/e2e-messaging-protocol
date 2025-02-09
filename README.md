@@ -2,6 +2,8 @@
 
 Secure Messenger is a web‐based end‐to‐end encrypted messaging system with a central server that handles message storage and delivery. This project uses RSA-2048 encryption to ensure that only the intended recipient can read the messages. It is built with a modular architecture that features abstraction layers for cryptography, configuration management, message handling, and transport.
 
+![](./screenshot.png)
+
 ## Features
 
 - **End-to-End Encryption:** Uses RSA-2048 for encrypting messages.
