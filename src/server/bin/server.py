@@ -11,7 +11,7 @@ def setup_logging():
     # Create log directory if it doesn't exist
     log_path = Path('.data/server')
     log_path.mkdir(parents=True, exist_ok=True)
-    
+
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',

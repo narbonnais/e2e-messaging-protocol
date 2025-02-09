@@ -5,22 +5,24 @@ from ..repository.interfaces import MessageRepositoryInterface
 from .interfaces import MessageServiceInterface, CryptoServiceInterface
 from ...common.crypto_service import CryptoService
 
+
 class MessageService(MessageServiceInterface):
     """Service layer for handling message operations"""
-    
-    def __init__(self, 
+
+    def __init__(self,
                  repository: MessageRepositoryInterface,
                  crypto_service: CryptoServiceInterface):
         self.repository = repository
         self.crypto = crypto_service
 
-    def handle_send_command(self, command_tokens: list) -> Tuple[bool, str, bytes]:
+    def handle_send_command(
+            self, command_tokens: list) -> Tuple[bool, str, bytes]:
         """
         Process a SEND command
-        
+
         Args:
             command_tokens: List of command parts ["SEND", recipient_pub, ciphertext, ...]
-            
+
         Returns:
             Tuple[bool, str, bytes]: (success, message, response_bytes)
         """
@@ -37,17 +39,19 @@ class MessageService(MessageServiceInterface):
             nonce = base64.b64decode(b64_nonce)
 
             # Verify signature using injected crypto service
-            if not self.crypto.verify_send_request(sender_pub, recipient_pub, ciphertext, signature, nonce):
+            if not self.crypto.verify_send_request(
+                    sender_pub, recipient_pub, ciphertext, signature, nonce):
                 msg = f"Invalid signature in SEND from {sender_pub[:20]}..."
                 logging.warning(msg)
                 return False, msg, b"ERROR: Invalid signature\n"
 
             # Store message using injected repository
-            if self.repository.store_message(recipient_pub, ciphertext, sender_pub, signature, nonce):
+            if self.repository.store_message(
+                    recipient_pub, ciphertext, sender_pub, signature, nonce):
                 msg = f"Stored message for {recipient_pub[:20]} from {sender_pub[:20]}..."
                 logging.info(msg)
                 return True, msg, b"OK: Message stored\n"
-            
+
             return False, "Failed to store message", b"ERROR: Failed to store message\n"
 
         except Exception as e:
@@ -55,13 +59,14 @@ class MessageService(MessageServiceInterface):
             logging.error(error_msg)
             return False, error_msg, f"ERROR: {str(e)}\n".encode('utf-8')
 
-    def handle_pull_command(self, command_tokens: list) -> Tuple[bool, str, bytes]:
+    def handle_pull_command(
+            self, command_tokens: list) -> Tuple[bool, str, bytes]:
         """
         Process a PULL command
-        
+
         Args:
             command_tokens: List of command parts ["PULL", requester_pub, signature, nonce]
-            
+
         Returns:
             Tuple[bool, str, bytes]: (success, message, response_bytes)
         """
@@ -76,7 +81,8 @@ class MessageService(MessageServiceInterface):
             nonce = base64.b64decode(b64_nonce)
 
             # Verify signature
-            if not self.crypto.verify_pull_request(requester_pub, signature, nonce):
+            if not self.crypto.verify_pull_request(
+                    requester_pub, signature, nonce):
                 msg = f"Invalid signature in PULL from {requester_pub[:20]}..."
                 logging.warning(msg)
                 return False, msg, b"ERROR: Invalid signature\n"
@@ -107,7 +113,7 @@ class MessageService(MessageServiceInterface):
     def cleanup_old_messages(self, retention_days: int) -> Tuple[bool, str]:
         """
         Clean up old pulled messages
-        
+
         Returns:
             Tuple[bool, str]: (success, message)
         """
@@ -121,4 +127,4 @@ class MessageService(MessageServiceInterface):
         except Exception as e:
             error_msg = f"Error cleaning up messages: {str(e)}"
             logging.error(error_msg)
-            return False, error_msg 
+            return False, error_msg

@@ -24,6 +24,7 @@ db_lock = threading.Lock()
 
 crypto_service = CryptoService()
 
+
 def load_config(config_path: str = None) -> dict:
     """Load client configuration from YAML file"""
     default_config = Path("config/client_default.yaml")
@@ -161,11 +162,8 @@ def send_message(server: str, port: int,
                     db_path = get_client_db_path(sender_id)
                     init_client_db(db_path)
                     store_decrypted_message(
-                        db_path,
-                        crypto_service.serialize_public_key(private_key.public_key()),
-                        recipient_pub_key,
-                        message
-                    )
+                        db_path, crypto_service.serialize_public_key(
+                            private_key.public_key()), recipient_pub_key, message)
                 return msg
 
         except socket.timeout:
@@ -244,7 +242,8 @@ def get_id_from_pubkey(pub_key_pem: bytes) -> str:
             try:
                 with pub_key_path.open('rb') as f:
                     stored_key = crypto_service.load_public_key(f.read())
-                    stored_pem = crypto_service.serialize_public_key(stored_key)
+                    stored_pem = crypto_service.serialize_public_key(
+                        stored_key)
                     if stored_pem == normalized_pem:
                         return user_dir.name.lower()  # Return lowercase ID
             except Exception:

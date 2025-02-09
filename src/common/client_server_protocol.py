@@ -7,6 +7,7 @@ from .crypto_service import CryptoService
 
 crypto_service = CryptoService()
 
+
 def create_send_command(
     sender_private_key,
     recipient_pub_key: bytes,
@@ -27,15 +28,18 @@ def create_send_command(
     recipient_pub_pem = recipient_pub_key  # Already in PEM format
 
     # Encrypt message
-    ciphertext = crypto_service.encrypt_message(recipient_pub_pem, message.encode('utf-8'))
+    ciphertext = crypto_service.encrypt_message(
+        recipient_pub_pem, message.encode('utf-8'))
 
     # Get sender's public key
-    sender_pub_pem = crypto_service.serialize_public_key(sender_private_key.public_key())
+    sender_pub_pem = crypto_service.serialize_public_key(
+        sender_private_key.public_key())
 
     # Generate nonce and create signature
     nonce = os.urandom(32)
     data_to_sign = recipient_pub_pem + ciphertext + nonce
-    signature = crypto_service.create_signature(sender_private_key, data_to_sign)
+    signature = crypto_service.create_signature(
+        sender_private_key, data_to_sign)
 
     # Encode everything in base64
     b64_recipient_pub = base64.b64encode(recipient_pub_pem).decode('utf-8')
@@ -114,7 +118,8 @@ def parse_pull_response(response: str, private_key) -> list:
             sender_pub_pem = base64.b64decode(b64_sender_pub)
 
             # Decrypt message
-            plaintext = crypto_service.decrypt_message(private_key, ciphertext).decode('utf-8')
+            plaintext = crypto_service.decrypt_message(
+                private_key, ciphertext).decode('utf-8')
             messages.append((sender_pub_pem, plaintext))
 
         except Exception as e:
