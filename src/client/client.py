@@ -8,32 +8,44 @@ import sqlite3
 import threading
 from pathlib import Path
 from typing import List, Tuple
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
 import yaml
+
+# Import all crypto functions we need
+from ..common.crypto_service import CryptoService
+
+# Import protocol functions
+from ..common.client_server_protocol import (
+    create_send_command, create_pull_command,
+    parse_pull_response, parse_send_response
+)
 
 # Add this at the top level
 db_lock = threading.Lock()
 
+crypto_service = CryptoService()
+
 def load_config(config_path: str = None) -> dict:
     """Load client configuration from YAML file"""
     default_config = Path("config/client_default.yaml")
-    
+
     if not default_config.exists():
-        raise FileNotFoundError(f"Default config not found at {default_config}")
-        
+        raise FileNotFoundError(
+            f"Default config not found at {default_config}")
+
     with open(default_config) as f:
         config = yaml.safe_load(f)
-    
+
     if config_path and Path(config_path).exists():
         with open(config_path) as f:
             custom_config = yaml.safe_load(f)
             config.update(custom_config)
-            
+
     return config
+
 
 config = load_config()
 DATA_DIR = Path(config['data_dir'])
+
 
 def generate_keys(identifier: str):
     """
@@ -42,30 +54,16 @@ def generate_keys(identifier: str):
     key_dir = DATA_DIR / identifier
     key_dir.mkdir(parents=True, exist_ok=True)
 
-    private_key = rsa.generate_private_key(
-        public_exponent=65537,
-        key_size=2048
-    )
+    private_key = crypto_service.generate_key_pair()
     public_key = private_key.public_key()
 
     private_path = key_dir / "private_key.pem"
     public_path = key_dir / "public_key.pem"
 
     with private_path.open("wb") as f:
-        f.write(
-            private_key.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
-                encryption_algorithm=serialization.NoEncryption()
-            )
-        )
+        f.write(crypto_service.serialize_private_key(private_key))
     with public_path.open("wb") as f:
-        f.write(
-            public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-        )
+        f.write(crypto_service.serialize_public_key(public_key))
 
     # Initialize the database with default config when generating new keys
     db_path = get_client_db_path(identifier)
@@ -76,7 +74,10 @@ def generate_keys(identifier: str):
     print(f" - {public_path}")
 
 
-def import_public_key(identifier: str, public_key_path: str, db_path: str = None):
+def import_public_key(
+        identifier: str,
+        public_key_path: str,
+        db_path: str = None):
     """
     Import a public key for `identifier` into contacts database
     """
@@ -84,7 +85,7 @@ def import_public_key(identifier: str, public_key_path: str, db_path: str = None
         with open(public_key_path, "rb") as f:
             key_data = f.read()
             # Check it's a valid public key
-            serialization.load_pem_public_key(key_data)
+            crypto_service.load_public_key(key_data)
 
         if db_path is None:
             # Get current user's DB path from the directory structure
@@ -132,52 +133,12 @@ def send_message(server: str, port: int,
 
         # Get sender's private key from filesystem
         sender_private = get_key_path(sender_id, private=True)
-
         with sender_private.open("rb") as f:
-            private_key = serialization.load_pem_private_key(
-                f.read(), password=None)
+            private_key = crypto_service.load_private_key(f.read())
 
-        # Load recipient's public key from contacts database
-        pub_key = serialization.load_pem_public_key(recipient_pub_key)
-
-        # Convert recipient pub to PEM bytes
-        recipient_pub_pem = pub_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
-
-        # Encrypt
-        ciphertext = pub_key.encrypt(
-            message.encode('utf-8'),
-            padding.OAEP(
-                mgf=padding.MGF1(hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None
-            )
-        )
-
-        # Sender's public key
-        sender_pub_pem = private_key.public_key().public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
-
-        # random nonce
-        nonce = os.urandom(32)
-        data_to_sign = recipient_pub_pem + ciphertext + nonce
-        signature = private_key.sign(
-            data_to_sign,
-            padding.PKCS1v15(),
-            hashes.SHA256()
-        )
-
-        b64_recipient_pub = base64.b64encode(recipient_pub_pem).decode('utf-8')
-        b64_ciphertext = base64.b64encode(ciphertext).decode('utf-8')
-        b64_signature = base64.b64encode(signature).decode('utf-8')
-        b64_sender_pub = base64.b64encode(sender_pub_pem).decode('utf-8')
-        b64_nonce = base64.b64encode(nonce).decode('utf-8')
-
-        send_cmd = f"SEND {b64_recipient_pub} {b64_ciphertext} {b64_signature} {b64_sender_pub} {b64_nonce}\n"
+        # Create send command using protocol
+        send_cmd, ciphertext = create_send_command(
+            private_key, recipient_pub_key, message)
 
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -186,25 +147,28 @@ def send_message(server: str, port: int,
                 s.sendall(send_cmd.encode('utf-8'))
                 resp = s.recv(4096).decode('utf-8', errors='ignore').strip()
 
-                # If message was sent successfully, store it locally
-                if resp.startswith("OK"):
+                success, msg = parse_send_response(resp)
+                if success:
+                    # Store message locally
                     db_path = get_client_db_path(sender_id)
                     init_client_db(db_path)
                     store_decrypted_message(
-                        db_path, sender_pub_pem, recipient_pub_pem, message)
+                        db_path,
+                        crypto_service.serialize_public_key(private_key.public_key()),
+                        recipient_pub_key,
+                        message
+                    )
+                return msg
 
-            return resp
         except socket.timeout:
-            return "Error: Connection to server timed out. Please check server address and port."
+            return "Error: Connection to server timed out"
         except ConnectionRefusedError:
-            return "Error: Connection refused. Please check if the server is running and the address/port are correct."
+            return "Error: Connection refused"
         except socket.gaierror:
-            return "Error: Could not resolve server address. Please check the server address."
+            return "Error: Could not resolve server address"
         except Exception as e:
             return f"Error connecting to server: {str(e)}"
 
-    except FileNotFoundError as e:
-        return f"Error: {str(e)}"
     except Exception as e:
         logging.error(f"Error in send_message: {str(e)}")
         return f"Error sending message: {str(e)}"
@@ -217,90 +181,31 @@ def pull_messages(server: str, port: int, identifier: str) -> str:
         db_path = get_client_db_path(identifier)
         init_client_db(db_path)
 
+        # Get private key
         private_path = get_key_path(identifier, True)
-        public_path = get_key_path(identifier, False)
-
         with private_path.open("rb") as f:
-            private_key = serialization.load_pem_private_key(
-                f.read(), password=None)
-        with public_path.open("rb") as f:
-            pub_key = serialization.load_pem_public_key(f.read())
+            private_key = crypto_service.load_private_key(f.read())
 
-        pub_pem = pub_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
+        # Create pull command using protocol
+        pull_cmd = create_pull_command(private_key)
 
-        # Add nonce generation before signature
-        nonce = os.urandom(32)
-        data_to_sign = pub_pem + nonce
-
-        signature = private_key.sign(
-            data_to_sign,  # Changed to include nonce
-            padding.PKCS1v15(),
-            hashes.SHA256()
-        )
-
-        b64_requester_pub = base64.b64encode(pub_pem).decode('utf-8')
-        b64_signature = base64.b64encode(signature).decode('utf-8')
-        b64_nonce = base64.b64encode(nonce).decode('utf-8')
-        pull_cmd = f"PULL {b64_requester_pub} {b64_signature} {b64_nonce}\n"
-
+        # Send request
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((server, port))
             s.sendall(pull_cmd.encode('utf-8'))
             resp = s.recv(65536).decode('utf-8', errors='ignore').strip()
 
-        # Parse and decrypt messages
-        decrypted_messages = []
-        if resp.startswith("ERROR:"):
-            return resp
+        # Parse response and store messages
+        messages = parse_pull_response(resp, private_key)
 
-        # Check for no messages response
-        if resp.startswith("OK: No messages"):
-            return "No new messages"
+        # Store decrypted messages
+        pub_pem = crypto_service.serialize_public_key(private_key.public_key())
+        for sender_pub_pem, plaintext in messages:
+            store_decrypted_message(
+                db_path, sender_pub_pem, pub_pem, plaintext)
 
-        # Remove "MESSAGES:" prefix if present
-        if resp.startswith("MESSAGES:"):
-            resp = resp[9:].strip()
-
-        if resp:  # Only process if there are messages
-            messages = resp.split("\n")
-            for msg in messages:
-                if not msg:
-                    continue
-                try:
-                    # Parse message parts
-                    parts = msg.split("::")
-                    if len(parts) != 2:
-                        logging.warning(f"Invalid message format: {msg}")
-                        continue
-
-                    b64_ciphertext, b64_sender_pub = parts
-                    ciphertext = base64.b64decode(b64_ciphertext)
-                    sender_pub_pem = base64.b64decode(b64_sender_pub)
-
-                    # Decrypt message
-                    plaintext = private_key.decrypt(
-                        ciphertext,
-                        padding.OAEP(
-                            mgf=padding.MGF1(hashes.SHA256()),
-                            algorithm=hashes.SHA256(),
-                            label=None
-                        )
-                    ).decode('utf-8')
-
-                    decrypted_messages.append((sender_pub_pem, plaintext))
-
-                    # Store the decrypted message with public keys
-                    store_decrypted_message(
-                        db_path, sender_pub_pem, pub_pem, plaintext)
-                except Exception as e:
-                    logging.error(f"Error decrypting message: {str(e)}")
-                    continue
-
-        if decrypted_messages:
-            return f"Retrieved and stored {len(decrypted_messages)} messages"
+        if messages:
+            return f"Retrieved and stored {len(messages)} messages"
         return "No new messages"
 
     except FileNotFoundError as e:
@@ -318,11 +223,8 @@ def get_id_from_pubkey(pub_key_pem: bytes) -> str:
 
     # Normalize the input public key by loading and re-encoding it
     try:
-        pub_key = serialization.load_pem_public_key(pub_key_pem)
-        normalized_pem = pub_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
+        pub_key = crypto_service.load_public_key(pub_key_pem)
+        normalized_pem = crypto_service.serialize_public_key(pub_key)
     except Exception:
         return "unknown"
 
@@ -333,11 +235,8 @@ def get_id_from_pubkey(pub_key_pem: bytes) -> str:
         if pub_key_path.exists():
             try:
                 with pub_key_path.open('rb') as f:
-                    stored_key = serialization.load_pem_public_key(f.read())
-                    stored_pem = stored_key.public_bytes(
-                        encoding=serialization.Encoding.PEM,
-                        format=serialization.PublicFormat.SubjectPublicKeyInfo
-                    )
+                    stored_key = crypto_service.load_public_key(f.read())
+                    stored_pem = crypto_service.serialize_public_key(stored_key)
                     if stored_pem == normalized_pem:
                         return user_dir.name.lower()  # Return lowercase ID
             except Exception:
@@ -352,7 +251,11 @@ def get_client_db_path(identifier: str) -> str:
     return str(db_dir / config['database']['name'])
 
 
-def store_decrypted_message(db_path: str, sender_pubkey: bytes, recipient_pubkey: bytes, message: str):
+def store_decrypted_message(
+        db_path: str,
+        sender_pubkey: bytes,
+        recipient_pubkey: bytes,
+        message: str):
     """Store a decrypted message in the client's database."""
     with db_lock, sqlite3.connect(db_path) as conn:
         c = conn.cursor()
@@ -364,7 +267,8 @@ def store_decrypted_message(db_path: str, sender_pubkey: bytes, recipient_pubkey
         conn.commit()
 
 
-def get_messages(db_path: str, limit: int = 100) -> List[Tuple[str, str, str, float]]:
+def get_messages(
+        db_path: str, limit: int = 100) -> List[Tuple[str, str, str, float]]:
     """Retrieve stored messages from the client database."""
     with db_lock, sqlite3.connect(db_path) as conn:
         c = conn.cursor()
@@ -410,15 +314,18 @@ def init_client_db(db_path: str):
 
         # Insert default server settings if they don't exist
         c.execute("""
-        INSERT OR IGNORE INTO config (key, value) 
-        VALUES 
+        INSERT OR IGNORE INTO config (key, value)
+        VALUES
             ('server_host', '127.0.0.1'),
             ('server_port', '50000')
         """)
         conn.commit()
 
 
-def store_contact(db_path: str, contact_id: str, public_key_pem: bytes) -> bool:
+def store_contact(
+        db_path: str,
+        contact_id: str,
+        public_key_pem: bytes) -> bool:
     """Store or update a contact's public key in the database."""
     with db_lock, sqlite3.connect(db_path) as conn:
         c = conn.cursor()
@@ -461,7 +368,7 @@ def fix_message_case(db_path: str):
     with db_lock, sqlite3.connect(db_path) as conn:
         c = conn.cursor()
         c.execute("""
-        UPDATE messages 
+        UPDATE messages
         SET sender_id = LOWER(sender_id),
             recipient_id = LOWER(recipient_id)
         """)
