@@ -8,12 +8,16 @@ from ..server import run_server
 
 
 def setup_logging():
+    # Create log directory if it doesn't exist
+    log_path = Path('.data/server')
+    log_path.mkdir(parents=True, exist_ok=True)
+    
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler('.data/server/server.log', mode='a')
+            logging.FileHandler(log_path / 'server.log', mode='a')
         ]
     )
 
@@ -43,6 +47,7 @@ def main():
     parser.add_argument('--port', type=int, help='Server port')
     args = parser.parse_args()
 
+    setup_logging()  # Call setup_logging before starting server
     run_server(args.host, args.port)
 
 

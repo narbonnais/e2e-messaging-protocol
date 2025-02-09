@@ -3,6 +3,7 @@ import time
 import logging
 import threading
 from typing import List, Tuple, Optional
+from pathlib import Path
 from .interfaces import MessageRepositoryInterface
 
 class MessageRepository(MessageRepositoryInterface):
@@ -11,6 +12,8 @@ class MessageRepository(MessageRepositoryInterface):
     def __init__(self, db_path: str):
         self.db_path = db_path
         self.db_lock = threading.Lock()
+        # Create directory if it doesn't exist
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self.init_db()
     
     def init_db(self):
