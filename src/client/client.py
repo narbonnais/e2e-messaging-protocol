@@ -69,6 +69,14 @@ def generate_keys(identifier: str):
     db_path = get_client_db_path(identifier)
     init_client_db(db_path)
 
+    # Update server config from YAML defaults
+    server_config = config.get('server', {})
+    update_server_config(
+        db_path,
+        server_config.get('host', '127.0.0.1'),
+        server_config.get('port', 50000)
+    )
+
     print(f"Generated keys in {key_dir}/")
     print(f" - {private_path}")
     print(f" - {public_path}")
