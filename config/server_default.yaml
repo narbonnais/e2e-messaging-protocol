@@ -7,6 +7,6 @@ web_server:
   port: 8001
 
 database:
-  path: "messages.db"
+  path: ".data/server/server.db"
   cleanup_interval: 3600  # seconds
   retention_days: 7 

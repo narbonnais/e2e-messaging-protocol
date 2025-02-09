@@ -38,7 +38,7 @@ def api_metrics():
 
 @app.route("/api/log", methods=['GET'])
 def api_log():
-    logfile = "server.log"
+    logfile = os.path.join(".data/server", "server.log")
     if not os.path.exists(logfile):
         return "(No log yet)"
     try:
@@ -70,6 +70,11 @@ config = load_config()
 
 def main():
     logging.basicConfig(level=logging.INFO)
+    
+    # Ensure server data directory exists
+    server_dir = Path(".data/server")
+    server_dir.mkdir(parents=True, exist_ok=True)
+    
     web_config = config['web_server']
     init_db(config['database']['path'])
     app.run(host=web_config['host'], 

@@ -6,4 +6,6 @@ web:
   host: "127.0.0.1" 
   port: 8000
 
-data_dir: ".data" 
+data_dir: ".data/client"
+database:
+  name: "client.db" 

@@ -12,7 +12,7 @@ def setup_logging():
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler('server.log', mode='a')
+            logging.FileHandler('.data/server/server.log', mode='a')
         ]
     )
 
@@ -39,6 +39,10 @@ def main():
     parser.add_argument("--host", help="Override host to bind")
     parser.add_argument("--port", type=int, help="Override port to bind")
     args = parser.parse_args()
+
+    # Ensure server data directory exists
+    server_dir = Path(".data/server")
+    server_dir.mkdir(parents=True, exist_ok=True)
 
     setup_logging()
     

@@ -349,7 +349,7 @@ def get_client_db_path(identifier: str) -> str:
     """Get the path to a client's message database."""
     db_dir = DATA_DIR / identifier
     db_dir.mkdir(parents=True, exist_ok=True)
-    return str(db_dir / "messages.db")
+    return str(db_dir / config['database']['name'])
 
 
 def store_decrypted_message(db_path: str, sender_pubkey: bytes, recipient_pubkey: bytes, message: str):

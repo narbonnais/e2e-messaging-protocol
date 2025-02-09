@@ -3,10 +3,13 @@ import logging
 from pathlib import Path
 import os
 import yaml
+import shutil
+import sqlite3
 
 from ..client import (generate_keys, import_public_key, send_message,
                         pull_messages, get_client_db_path, get_messages, init_client_db,
-                        get_contacts, get_id_from_pubkey, get_server_config, update_server_config)
+                        get_contacts, get_id_from_pubkey, get_server_config, update_server_config,
+                        db_lock)
 
 app = Flask(__name__)
 
@@ -81,6 +84,7 @@ def api_send_message():
         return "Error: Missing fields", 400
     
     db_path = get_client_db_path(sender)
+    init_client_db(db_path)  # Ensure DB exists and is initialized
     host, port = get_server_config(db_path)
     resp = send_message(host, port, sender, recipient, message)
     return resp
@@ -93,6 +97,7 @@ def api_pull_messages():
         return "Error: Missing 'id'", 400
     
     db_path = get_client_db_path(identifier)
+    init_client_db(db_path)  # Ensure DB exists and is initialized
     host, port = get_server_config(db_path)
     resp = pull_messages(host, port, identifier)
     return resp
@@ -129,7 +134,7 @@ def api_stored_messages():
 
 @app.route('/api/list_local_ids')
 def api_list_local_ids():
-    data_dir = Path(".data")
+    data_dir = Path(config['data_dir'])
     if not data_dir.exists():
         return jsonify([])
     dirs = [d.name for d in data_dir.iterdir() if d.is_dir()]
@@ -155,7 +160,7 @@ def get_public_key():
         
     try:
         # Read the public key file
-        key_path = os.path.join(DATA_DIR, identifier, 'public_key.pem')
+        key_path = os.path.join(config['data_dir'], identifier, 'public_key.pem')
         if not os.path.exists(key_path):
             return f'No public key found for {identifier}', 404
             
@@ -173,6 +178,7 @@ def api_get_server_config():
         return "Error: Missing identifier", 400
     try:
         db_path = get_client_db_path(identifier)
+        init_client_db(db_path)  # Ensure DB exists and is initialized
         host, port = get_server_config(db_path)
         return jsonify({"host": host, "port": port})
     except Exception as e:
@@ -194,6 +200,7 @@ def api_update_server_config():
             return "Error: Invalid port number", 400
             
         db_path = get_client_db_path(identifier)
+        init_client_db(db_path)  # Ensure DB exists and is initialized
         if update_server_config(db_path, host, port):
             return "Server configuration updated successfully"
         return "Error updating server configuration", 500
@@ -202,8 +209,45 @@ def api_update_server_config():
     except Exception as e:
         return f"Error: {str(e)}", 500
 
+@app.route("/api/delete_local_id", methods=['POST'])
+def api_delete_local_id():
+    data = request.json
+    identifier = data.get('id')
+    if not identifier:
+        return "Error: Missing identifier", 400
+    try:
+        user_dir = Path(config['data_dir']) / identifier
+        if not user_dir.exists():
+            return f"Error: ID {identifier} not found", 404
+        shutil.rmtree(user_dir)
+        return "Local ID deleted successfully"
+    except Exception as e:
+        return f"Error deleting local ID: {str(e)}", 500
+
+@app.route("/api/delete_contact", methods=['POST'])
+def api_delete_contact():
+    data = request.json
+    user_id = data.get('userId')
+    contact_id = data.get('contactId')
+    if not all([user_id, contact_id]):
+        return "Error: Missing required fields", 400
+    try:
+        db_path = get_client_db_path(user_id)
+        with db_lock, sqlite3.connect(db_path) as conn:
+            c = conn.cursor()
+            c.execute("DELETE FROM contacts WHERE id = ?", (contact_id,))
+            conn.commit()
+        return "Contact deleted successfully"
+    except Exception as e:
+        return f"Error deleting contact: {str(e)}", 500
+
 def main():
     logging.basicConfig(level=logging.INFO)
+    
+    # Ensure data directory exists
+    data_dir = Path(config['data_dir'])
+    data_dir.mkdir(parents=True, exist_ok=True)
+    
     web_config = config['web']
     app.run(host=web_config['host'], 
             port=web_config['port'], 

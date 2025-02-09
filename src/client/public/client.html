@@ -80,7 +80,7 @@
     .local-ids div:hover, .contact-list div:hover {
       background: #f3f3f3;
     }
-    .local-ids .active {
+    .local-ids .active, .contact-list .active {
       background: #e3f2fd;
       font-weight: bold;
     }
@@ -278,6 +278,7 @@
           <button class="btn-small" onclick="refreshLocalIds()">Refresh</button>
           <button class="btn-small" onclick="copyLocalPublicKey()">Copy Key</button>
           <button class="btn-small" onclick="showAddLocalIdModal()">Add</button>
+          <button class="btn-small" onclick="deleteLocalId()">Delete</button>
         </div>
       </div>
 
@@ -289,6 +290,7 @@
         <div class="button-row">
           <button class="btn-small" onclick="loadContacts()">Refresh</button>
           <button class="btn-small" onclick="showAddContactModal()">Add Contact</button>
+          <button class="btn-small" onclick="deleteContact()">Delete Contact</button>
         </div>
       </div>
     </div>
@@ -323,19 +325,6 @@
         <input type="text" id="serverHost" placeholder="Server host (e.g. 127.0.0.1)" />
         <input type="number" id="serverPort" placeholder="Server port (e.g. 50000)" />
         <button onclick="updateServerConfig()">Update Server</button>
-      </div>
-
-      <div class="form-group">
-        <label>Generate a New Key Pair:</label>
-        <input type="text" id="genId" placeholder="Your new ID e.g. alice" />
-        <button onclick="generateKey()">Generate</button>
-      </div>
-
-      <div class="form-group">
-        <label>Import a Contact's Public Key</label>
-        <input type="text" id="importId" placeholder="Contact's ID e.g. bob" />
-        <textarea id="importPubKey" placeholder="Paste contact's public key PEM here"></textarea>
-        <button onclick="importPubKey()">Import</button>
       </div>
 
       <button class="close-btn" onclick="hideSettings()">Close</button>
@@ -410,7 +399,7 @@
     async function refreshLocalIds() {
       try {
         const resp = await fetch('/api/list_local_ids');
-        const ids = await resp.json(); // e.g. ["alice","bob","charlie"]
+        const ids = await resp.json(); // e.g. ["alice","bob"] from .data/client directory
         const container = document.getElementById('localIds');
         container.innerHTML = '';
         if (Array.isArray(ids) && ids.length > 0) {
@@ -454,7 +443,7 @@
       }
       try {
         const resp = await fetch('/api/list_contacts?identifier=' + encodeURIComponent(currentUser));
-        const contacts = await resp.json();  // e.g. ["bob","charlie"] or an array of known public keys
+        const contacts = await resp.json();
         const container = document.getElementById('contactList');
         container.innerHTML = '';
         if (Array.isArray(contacts) && contacts.length > 0) {
@@ -462,6 +451,10 @@
             const div = document.createElement('div');
             div.textContent = c;
             div.onclick = () => selectContact(c);
+            // Highlight if it's current contact
+            if (c === currentContact) {
+              div.classList.add('active');
+            }
             container.appendChild(div);
           });
         } else {
@@ -476,6 +469,10 @@
     function selectContact(contactId) {
       currentContact = contactId;
       document.getElementById('chatHeader').textContent = `Chat with ${contactId}`;
+      // Update contact highlight
+      document.querySelectorAll('#contactList div').forEach(div => {
+        div.classList.toggle('active', div.textContent === contactId);
+      });
       loadMessages();
     }
 
@@ -592,56 +589,122 @@
       document.getElementById('settingsModal').classList.remove('show');
     }
 
-    async function generateKey() {
-      const id = document.getElementById('genId').value.trim();
-      if (!id) {
-        alert('Please enter an ID for your new key.');
-        return;
-      }
+    async function loadServerConfig() {
+      if (!currentUser) return;
+      
       try {
-        const resp = await fetch('/api/generate_key', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id })
-        });
-        const text = await resp.text();
-        alert(text);
-        // Refresh local IDs after generating
-        await refreshLocalIds();
+        const resp = await fetch(`/api/server_config?id=${encodeURIComponent(currentUser)}`);
+        const config = await resp.json();
+        
+        document.getElementById('serverHost').value = config.host;
+        document.getElementById('serverPort').value = config.port;
       } catch (err) {
-        alert('Error generating keys:' + err);
+        console.error('Error loading server config:', err);
       }
     }
 
-    async function importPubKey() {
-      const id = document.getElementById('importId').value.trim();
-      const pubKey = document.getElementById('importPubKey').value.trim();
-      if (!id || !pubKey) {
-        alert('Please fill out both contact ID and public key.');
-        return;
-      }
+    async function updateServerConfig() {
       if (!currentUser) {
-        alert('Please select a local ID first.');
+        alert('Please select a local ID first');
         return;
       }
+      
+      const host = document.getElementById('serverHost').value.trim();
+      const port = document.getElementById('serverPort').value.trim();
+      
+      if (!host || !port) {
+        alert('Please enter both host and port');
+        return;
+      }
+      
       try {
-        const resp = await fetch('/api/import_key', {
+        const resp = await fetch('/api/server_config', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            id, 
-            publicKeyPem: pubKey,
-            userId: currentUser 
+          body: JSON.stringify({
+            id: currentUser,
+            host: host,
+            port: parseInt(port)
           })
         });
-        const text = await resp.text();
-        alert(text);
-        // If successful, we might want to loadContacts again if currentUser is set
-        if (currentUser) {
-          await loadContacts();
+        
+        const result = await resp.text();
+        alert(result);
+      } catch (err) {
+        alert('Error updating server config: ' + err);
+      }
+    }
+
+    async function deleteLocalId() {
+      if (!currentUser) {
+        alert('Please select a local ID first');
+        return;
+      }
+      
+      if (!confirm(`Are you sure you want to delete the local ID "${currentUser}" and all its data?\nThis action cannot be undone!`)) {
+        return;
+      }
+      
+      try {
+        const resp = await fetch('/api/delete_local_id', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: currentUser })
+        });
+        
+        const result = await resp.text();
+        if (resp.ok) {
+          alert(result);
+          currentUser = '';
+          currentContact = '';
+          document.getElementById('messageList').innerHTML = '';
+          document.getElementById('chatHeader').textContent = 'Select a contact to chat';
+          await refreshLocalIds();
+          loadContacts();
+        } else {
+          alert('Error: ' + result);
         }
       } catch (err) {
-        alert('Error importing key: ' + err);
+        alert('Error deleting local ID: ' + err);
+      }
+    }
+
+    async function deleteContact() {
+      if (!currentUser) {
+        alert('Please select a local ID first');
+        return;
+      }
+      if (!currentContact) {
+        alert('Please select a contact to delete');
+        return;
+      }
+      
+      if (!confirm(`Are you sure you want to delete the contact "${currentContact}"?\nThis action cannot be undone!`)) {
+        return;
+      }
+      
+      try {
+        const resp = await fetch('/api/delete_contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUser,
+            contactId: currentContact
+          })
+        });
+        
+        const result = await resp.text();
+        if (resp.ok) {
+          alert(result);
+          currentContact = '';
+          document.getElementById('messageList').innerHTML = '';
+          document.getElementById('chatHeader').textContent = 'Select a contact to chat';
+          await loadContacts();
+        } else {
+          alert('Error: ' + result);
+        }
+      } catch (err) {
+        alert('Error deleting contact: ' + err);
       }
     }
 
@@ -775,52 +838,6 @@
         }
       } catch (err) {
         alert('Error generating key: ' + err);
-      }
-    }
-
-    async function loadServerConfig() {
-      if (!currentUser) return;
-      
-      try {
-        const resp = await fetch(`/api/server_config?id=${encodeURIComponent(currentUser)}`);
-        const config = await resp.json();
-        
-        document.getElementById('serverHost').value = config.host;
-        document.getElementById('serverPort').value = config.port;
-      } catch (err) {
-        console.error('Error loading server config:', err);
-      }
-    }
-
-    async function updateServerConfig() {
-      if (!currentUser) {
-        alert('Please select a local ID first');
-        return;
-      }
-      
-      const host = document.getElementById('serverHost').value.trim();
-      const port = document.getElementById('serverPort').value.trim();
-      
-      if (!host || !port) {
-        alert('Please enter both host and port');
-        return;
-      }
-      
-      try {
-        const resp = await fetch('/api/server_config', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: currentUser,
-            host: host,
-            port: parseInt(port)
-          })
-        });
-        
-        const result = await resp.text();
-        alert(result);
-      } catch (err) {
-        alert('Error updating server config: ' + err);
       }
     }
   </script>
