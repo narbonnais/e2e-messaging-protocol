@@ -199,15 +199,20 @@ def pull_messages(server: str, port: int, identifier: str) -> str:
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
 
+        # Add nonce generation before signature
+        nonce = os.urandom(32)
+        data_to_sign = pub_pem + nonce
+        
         signature = private_key.sign(
-            pub_pem,
+            data_to_sign,  # Changed to include nonce
             padding.PKCS1v15(),
             hashes.SHA256()
         )
 
         b64_requester_pub = base64.b64encode(pub_pem).decode('utf-8')
         b64_signature = base64.b64encode(signature).decode('utf-8')
-        pull_cmd = f"PULL {b64_requester_pub} {b64_signature}\n"
+        b64_nonce = base64.b64encode(nonce).decode('utf-8')
+        pull_cmd = f"PULL {b64_requester_pub} {b64_signature} {b64_nonce}\n"
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((server, port))

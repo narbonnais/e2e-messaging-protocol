@@ -48,23 +48,25 @@ def handle_send(data_tokens):
 
 def handle_pull(data_tokens):
     """
-    data_tokens: ["PULL", <requester_pub>, <signature>]
+    data_tokens: ["PULL", <requester_pub>, <signature>, <nonce>]
     """
-    if len(data_tokens) != 3:
+    if len(data_tokens) != 4:
         logging.error("Invalid PULL command format.")
         return b"ERROR: Invalid PULL command format\n"
 
-    _, b64_requester_pub, b64_signature = data_tokens
+    _, b64_requester_pub, b64_signature, b64_nonce = data_tokens
     try:
         requester_pub = base64.b64decode(b64_requester_pub)
         signature     = base64.b64decode(b64_signature)
+        nonce         = base64.b64decode(b64_nonce)
     except Exception as e:
         logging.error(f"Base64 decode failed in PULL: {str(e)}")
         return b"ERROR: Base64 decode failed\n"
 
-    # Verify signature
+    # Verify signature with nonce
     try:
-        verify_signature(requester_pub, signature, requester_pub)
+        message_for_sig = requester_pub + nonce
+        verify_signature(requester_pub, signature, message_for_sig)
     except InvalidSignature:
         logging.warning(f"Invalid signature in PULL from {requester_pub[:20]}...")
         return b"ERROR: Invalid signature\n"
