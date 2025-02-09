@@ -29,7 +29,7 @@ class MessageServer:
         server_config = self.config_service.get_server_config()
 
         # Create dependencies
-        self.repo = MessageRepository(db_config.path)
+        self.repo = MessageRepository(db_config.get_full_path())
         self.crypto_service = CryptoService()
         self.service = MessageService(self.repo, self.crypto_service)
 

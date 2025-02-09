@@ -9,10 +9,14 @@ import logging
 class DatabaseConfig:
     """Database configuration settings"""
     path: str
-    name: str = "messages.db"
+    name: str = "server.db"
     cleanup_interval: int = 3600  # 1 hour
     retention_days: int = 30
     max_connections: int = 10
+
+    def get_full_path(self) -> str:
+        """Get the full database path"""
+        return str(Path(self.path) / self.name)
 
 
 @dataclass
@@ -120,7 +124,11 @@ class ConfigService:
         # Validate database config
         db_config = self.loaded_config['database']
         if not db_config.get('path'):
-            db_config['path'] = 'data/messages.db'
+            db_config['path'] = '.data/server'
+
+        # Ensure the database directory exists
+        db_path = Path(db_config['path'])
+        db_path.mkdir(parents=True, exist_ok=True)
 
         # Validate server config
         server_config = self.loaded_config['tcp_server']
@@ -147,8 +155,8 @@ class ConfigService:
         """Get database configuration"""
         db_config = self.loaded_config.get('database', {})
         return DatabaseConfig(
-            path=db_config.get('path', 'data/messages.db'),
-            name=db_config.get('name', 'messages.db'),
+            path=db_config.get('path', '.data/server'),
+            name=db_config.get('name', 'server.db'),
             cleanup_interval=db_config.get('cleanup_interval', 3600),
             retention_days=db_config.get('retention_days', 30),
             max_connections=db_config.get('max_connections', 10)
