@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Dict
 from abc import ABC, abstractmethod
 from typing import List, Tuple, Optional
 
@@ -46,12 +46,12 @@ class ContactRepositoryInterface(ABC):
 
     @abstractmethod
     def store_contact(self, contact_id: str, public_key_pem: bytes) -> bool:
-        """Store or update a contact’s public key."""
+        """Store or update a contact's public key."""
         pass
 
     @abstractmethod
     def get_contact(self, contact_id: str) -> Optional[bytes]:
-        """Retrieve a contact’s public key."""
+        """Retrieve a contact's public key."""
         pass
 
     @abstractmethod
@@ -98,4 +98,36 @@ class KeyRepositoryInterface(ABC):
         """
         List all key file names for a given identifier.
         """
+        pass
+
+
+class ConfigRepositoryInterface(ABC):
+    @abstractmethod
+    def init_db(self) -> None:
+        """Initialize the config database schema."""
+        pass
+
+    @abstractmethod
+    def set_config(self, section: str, key: str, value: str) -> bool:
+        """Store or update a configuration value."""
+        pass
+
+    @abstractmethod
+    def get_config(self, section: str, key: str, default: str = None) -> Optional[str]:
+        """Retrieve a configuration value."""
+        pass
+
+    @abstractmethod
+    def delete_config(self, section: str, key: str) -> bool:
+        """Delete a configuration entry."""
+        pass
+
+    @abstractmethod
+    def list_sections(self) -> List[str]:
+        """List all configuration sections."""
+        pass
+
+    @abstractmethod
+    def get_section_configs(self, section: str) -> Dict[str, str]:
+        """Get all configurations for a section."""
         pass

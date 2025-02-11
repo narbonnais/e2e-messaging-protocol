@@ -2,6 +2,7 @@ from pathlib import Path
 from .file_key_repository import FileKeyRepository
 from .sqlite_contact_repository import SQLiteContactRepository
 from .sqlite_message_repository import SQLiteMessageRepository
+from .sqlite_config_repository import SQLiteConfigRepository
 
 
 def main():
@@ -13,6 +14,9 @@ def main():
     key_repo = FileKeyRepository(str(base_dir / "keys"))
     contact_repo = SQLiteContactRepository(str(base_dir / "contacts.db"))
     message_repo = SQLiteMessageRepository(str(base_dir / "messages.db"))
+
+    # Initialize config repository
+    config_repo = SQLiteConfigRepository(str(base_dir / "config.db"))
 
     # Example user and keys
     user_id = "alice"
@@ -65,6 +69,30 @@ def main():
     # Cleanup old messages
     deleted_count = message_repo.cleanup_old_messages(retention_days=30)
     print(f"\nCleaned up {deleted_count} old messages")
+
+    # Store some configuration values
+    print("\nStoring configurations...")
+    config_repo.set_config("network", "host", "localhost")
+    config_repo.set_config("network", "port", "8080")
+    config_repo.set_config("storage", "data_dir", "/tmp/data")
+    config_repo.set_config("storage", "max_size", "1024")
+
+    # List all sections
+    print("\nConfiguration sections:")
+    sections = config_repo.list_sections()
+    for section in sections:
+        print(f"\nSection: {section}")
+        configs = config_repo.get_section_configs(section)
+        for key, value in configs.items():
+            print(f"  {key}: {value}")
+
+    # Get specific config value
+    host = config_repo.get_config("network", "host")
+    print(f"\nNetwork host: {host}")
+
+    # Delete a config
+    config_repo.delete_config("storage", "max_size")
+    print("\nDeleted storage.max_size configuration")
 
 
 if __name__ == "__main__":
