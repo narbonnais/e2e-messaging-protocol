@@ -1,9 +1,14 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
+
 class AsymmetricCryptoAlgorithm(ABC):
     @abstractmethod
-    def verify_signature(self, public_key, signature: bytes, message: bytes) -> bool:
+    def verify_signature(
+            self,
+            public_key,
+            signature: bytes,
+            message: bytes) -> bool:
         pass
 
     @abstractmethod
@@ -15,7 +20,10 @@ class AsymmetricCryptoAlgorithm(ABC):
         pass
 
     @abstractmethod
-    def decrypt_message(self, private_key, ciphertext: bytes) -> Optional[bytes]:
+    def decrypt_message(
+            self,
+            private_key,
+            ciphertext: bytes) -> Optional[bytes]:
         pass
 
     @abstractmethod
@@ -30,7 +38,10 @@ class KeyEncoding(ABC):
         pass
 
     @abstractmethod
-    def load_private_key(self, key_data: bytes, password: Optional[bytes] = None):
+    def load_private_key(
+            self,
+            key_data: bytes,
+            password: Optional[bytes] = None):
         pass
 
     @abstractmethod
@@ -39,4 +50,4 @@ class KeyEncoding(ABC):
 
     @abstractmethod
     def serialize_private_key(self, private_key) -> bytes:
-        pass 
+        pass

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ..main import run_server
 
+
 def setup_logging():
     logging.basicConfig(
         level=logging.INFO,
@@ -16,22 +17,25 @@ def setup_logging():
         ]
     )
 
+
 def load_config(config_path: str = None) -> dict:
     """Load server configuration from YAML file"""
     default_config = Path("config/server_default.yaml")
-    
+
     if not default_config.exists():
-        raise FileNotFoundError(f"Default config not found at {default_config}")
-        
+        raise FileNotFoundError(
+            f"Default config not found at {default_config}")
+
     with open(default_config) as f:
         config = yaml.safe_load(f)
-    
+
     if config_path and Path(config_path).exists():
         with open(config_path) as f:
             custom_config = yaml.safe_load(f)
             config.update(custom_config)
-            
+
     return config
+
 
 def main():
     parser = argparse.ArgumentParser(description="Raw TCP server runtime")
@@ -45,15 +49,16 @@ def main():
     server_dir.mkdir(parents=True, exist_ok=True)
 
     setup_logging()
-    
+
     config = load_config(args.config)
     tcp_config = config['tcp_server']
-    
+
     # Command line args override config file
     host = args.host or tcp_config['host']
     port = args.port or tcp_config['port']
-    
+
     run_server(host, port)
+
 
 if __name__ == "__main__":
     main()

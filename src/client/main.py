@@ -1,3 +1,7 @@
+from .network.client_network import NetworkClient
+from .repository.sqlite_contact_repository import SQLiteContactRepository
+from ..common.file_based_key_manager import FileKeyManager
+from .transport.tcp_client_transport import TCPClientTransport
 import os
 import sys
 import socket
@@ -28,19 +32,15 @@ db_lock = threading.Lock()
 crypto_service = CryptoService()
 
 # Add imports at the top
-from .transport.tcp_client_transport import TCPClientTransport
 
 # Add at module level with other services
 protocol_handler = ProtocolHandler()
 
 # Add imports
-from ..common.file_based_key_manager import FileKeyManager
 
 # Add imports
-from .repository.sqlite_contact_repository import SQLiteContactRepository
 
 # Add imports
-from .network.client_network import NetworkClient
 
 # Initialize key manager with data directory
 key_manager = FileKeyManager(DATA_DIR, crypto_service)
@@ -73,11 +73,11 @@ def generate_keys(identifier: str):
     """Generate a key pair for a user."""
     try:
         public_pem, private_pem = key_manager.generate_keys(identifier)
-        
+
         # Initialize the database with default config
         db_path = get_client_db_path(identifier)
         init_client_db(db_path)
-        
+
         # Update server config from YAML defaults
         server_config = config.get('server', {})
         update_server_config(
@@ -85,35 +85,39 @@ def generate_keys(identifier: str):
             server_config.get('host', '127.0.0.1'),
             server_config.get('port', 50000)
         )
-        
+
         print(f"Generated keys for {identifier}")
-        
+
     except KeyError as e:
         print(f"Error: {str(e)}")
     except Exception as e:
         print(f"Error generating keys: {str(e)}")
 
 
-def import_public_key(identifier: str, public_key_path: str, db_path: str = None):
+def import_public_key(
+        identifier: str,
+        public_key_path: str,
+        db_path: str = None):
     """Import a public key for a contact."""
     try:
         with open(public_key_path, "rb") as f:
             key_data = f.read()
-            
+
         if key_manager.import_public_key(identifier, key_data):
             if db_path is None:
                 users = key_manager.list_identifiers()
                 if not users:
-                    raise Exception("No local user found. Generate a key pair first.")
+                    raise Exception(
+                        "No local user found. Generate a key pair first.")
                 db_path = get_client_db_path(users[0])
-            
+
             # Store contact using repository
             contact_repo = get_contact_repository(db_path)
             if contact_repo.store_contact(identifier, key_data):
                 return f"Imported public key for {identifier}"
-                
+
         raise Exception("Failed to import key")
-        
+
     except Exception as e:
         raise Exception(f"Error importing key: {str(e)}")
 
@@ -141,8 +145,8 @@ def get_network_client(user_id: str, db_path: str) -> NetworkClient:
 
 
 def send_message(server: str, port: int,
-                sender_id: str, recipient_id: str,
-                message: str) -> str:
+                 sender_id: str, recipient_id: str,
+                 message: str) -> str:
     """Send a message using the network client."""
     client = get_network_client(sender_id, get_client_db_path(sender_id))
     try:

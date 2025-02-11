@@ -2,6 +2,7 @@ from cryptography.hazmat.primitives import serialization
 from typing import Optional
 from .interfaces import KeyEncoding
 
+
 class PEMKeyEncoding(KeyEncoding):
     def load_public_key(self, key_data: bytes):
         try:
@@ -9,9 +10,13 @@ class PEMKeyEncoding(KeyEncoding):
         except Exception as e:
             raise ValueError(f"Failed to load public key: {str(e)}")
 
-    def load_private_key(self, key_data: bytes, password: Optional[bytes] = None):
+    def load_private_key(
+            self,
+            key_data: bytes,
+            password: Optional[bytes] = None):
         try:
-            return serialization.load_pem_private_key(key_data, password=password)
+            return serialization.load_pem_private_key(
+                key_data, password=password)
         except Exception as e:
             raise ValueError(f"Failed to load private key: {str(e)}")
 
@@ -26,4 +31,4 @@ class PEMKeyEncoding(KeyEncoding):
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
             encryption_algorithm=serialization.NoEncryption()
-        ) 
+        )

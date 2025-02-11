@@ -16,9 +16,9 @@ class CryptoService:
         self.key_encoding = key_encoding
 
     def verify_signature(self,
-                        public_key_data: bytes,
-                        signature: bytes,
-                        message: bytes) -> bool:
+                         public_key_data: bytes,
+                         signature: bytes,
+                         message: bytes) -> bool:
         """
         Verify a signature using a public key in PEM format.
 
@@ -32,7 +32,8 @@ class CryptoService:
         """
         try:
             public_key = self.key_encoding.load_public_key(public_key_data)
-            return self.algorithm.verify_signature(public_key, signature, message)
+            return self.algorithm.verify_signature(
+                public_key, signature, message)
         except InvalidSignature:
             logging.warning("Invalid signature detected")
             return False
@@ -41,9 +42,9 @@ class CryptoService:
             return False
 
     def create_signature(self,
-                        private_key_data: bytes,
-                        message: bytes,
-                        password: Optional[bytes] = None) -> bytes:
+                         private_key_data: bytes,
+                         message: bytes,
+                         password: Optional[bytes] = None) -> bytes:
         """
         Create a signature for a message using a private key.
 
@@ -55,12 +56,13 @@ class CryptoService:
         Returns:
             bytes: The signature
         """
-        private_key = self.key_encoding.load_private_key(private_key_data, password)
+        private_key = self.key_encoding.load_private_key(
+            private_key_data, password)
         return self.algorithm.create_signature(private_key, message)
 
     def encrypt_message(self,
-                       public_key_data: bytes,
-                       message: bytes) -> Optional[bytes]:
+                        public_key_data: bytes,
+                        message: bytes) -> Optional[bytes]:
         """
         Encrypt a message using a public key in PEM format.
 
@@ -79,9 +81,9 @@ class CryptoService:
             return None
 
     def decrypt_message(self,
-                       private_key_data: bytes,
-                       ciphertext: bytes,
-                       password: Optional[bytes] = None) -> Optional[bytes]:
+                        private_key_data: bytes,
+                        ciphertext: bytes,
+                        password: Optional[bytes] = None) -> Optional[bytes]:
         """
         Decrypt a message using a private key.
 
@@ -94,7 +96,8 @@ class CryptoService:
             Optional[bytes]: The decrypted message or None if decryption fails
         """
         try:
-            private_key = self.key_encoding.load_private_key(private_key_data, password)
+            private_key = self.key_encoding.load_private_key(
+                private_key_data, password)
             return self.algorithm.decrypt_message(private_key, ciphertext)
         except Exception as e:
             logging.error(f"Error decrypting message: {str(e)}")
@@ -113,9 +116,9 @@ class CryptoService:
         )
 
     def verify_pull_request(self,
-                           requester_pub_data: bytes,
-                           signature: bytes,
-                           nonce: bytes) -> bool:
+                            requester_pub_data: bytes,
+                            signature: bytes,
+                            nonce: bytes) -> bool:
         """
         Verify a pull request signature.
 
@@ -128,14 +131,15 @@ class CryptoService:
             bool: True if signature is valid
         """
         message_for_sig = requester_pub_data + nonce
-        return self.verify_signature(requester_pub_data, signature, message_for_sig)
+        return self.verify_signature(
+            requester_pub_data, signature, message_for_sig)
 
     def verify_send_request(self,
-                           sender_pub_data: bytes,
-                           recipient_pub_data: bytes,
-                           ciphertext: bytes,
-                           signature: bytes,
-                           nonce: bytes) -> bool:
+                            sender_pub_data: bytes,
+                            recipient_pub_data: bytes,
+                            ciphertext: bytes,
+                            signature: bytes,
+                            nonce: bytes) -> bool:
         """
         Verify a send request signature.
 
@@ -150,7 +154,8 @@ class CryptoService:
             bool: True if signature is valid
         """
         message_for_sig = recipient_pub_data + ciphertext + nonce
-        return self.verify_signature(sender_pub_data, signature, message_for_sig)
+        return self.verify_signature(
+            sender_pub_data, signature, message_for_sig)
 
     @staticmethod
     def load_public_key(public_key_pem: bytes) -> rsa.RSAPublicKey:

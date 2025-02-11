@@ -5,8 +5,13 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa
 from cryptography.exceptions import InvalidSignature
 from .interfaces import AsymmetricCryptoAlgorithm
 
+
 class RSACryptoAlgorithm(AsymmetricCryptoAlgorithm):
-    def verify_signature(self, public_key, signature: bytes, message: bytes) -> bool:
+    def verify_signature(
+            self,
+            public_key,
+            signature: bytes,
+            message: bytes) -> bool:
         try:
             public_key.verify(
                 signature,
@@ -43,7 +48,10 @@ class RSACryptoAlgorithm(AsymmetricCryptoAlgorithm):
             logging.error(f"Error encrypting message: {str(e)}")
             return None
 
-    def decrypt_message(self, private_key, ciphertext: bytes) -> Optional[bytes]:
+    def decrypt_message(
+            self,
+            private_key,
+            ciphertext: bytes) -> Optional[bytes]:
         try:
             return private_key.decrypt(
                 ciphertext,
@@ -61,4 +69,4 @@ class RSACryptoAlgorithm(AsymmetricCryptoAlgorithm):
         return rsa.generate_private_key(
             public_exponent=65537,
             key_size=2048
-        ) 
+        )

@@ -8,7 +8,7 @@ def main():
     # Set up base directories and paths
     base_dir = Path("./data")
     base_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Initialize repositories
     key_repo = FileKeyRepository(str(base_dir / "keys"))
     contact_repo = SQLiteContactRepository(str(base_dir / "contacts.db"))
@@ -68,4 +68,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    main()
